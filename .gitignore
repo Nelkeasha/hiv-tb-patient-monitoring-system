@@ -45,3 +45,6 @@ application-local.properties
 application-local.yml
 *.env
 .env
+
+### Project documentation (local only, not for version control) ###
+documentation/
