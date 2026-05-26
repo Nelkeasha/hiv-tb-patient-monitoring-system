@@ -19,4 +19,15 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     List<Alert> findByPatientIdAndIsResolvedFalse(UUID patientId);
     List<Alert> findByAlertTypeAndIsResolvedFalse(AlertType alertType);
     List<Alert> findBySeverityAndIsResolvedFalse(AlertSeverity severity);
+    List<Alert> findByChwIdAndIsResolvedFalseOrderByCreatedAtDesc(UUID chwId);
+    List<Alert> findByChwIdAndIsReadFalseOrderByCreatedAtDesc(UUID chwId);
+    List<Alert> findByProviderIdAndIsResolvedFalseOrderByCreatedAtDesc(UUID providerId);
+    List<Alert> findBySeverityInAndIsResolvedFalseOrderByCreatedAtDesc(List<AlertSeverity> severities);
+    List<Alert> findByPatientIdAndIsResolvedFalseOrderByCreatedAtDesc(UUID patientId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT a FROM Alert a WHERE a.chw.facility.id = :facilityId " +
+            "AND a.isResolved = false ORDER BY a.createdAt DESC")
+    List<Alert> findUnresolvedAlertsForFacilityChws(
+            @org.springframework.data.repository.query.Param("facilityId") UUID facilityId);
 }
