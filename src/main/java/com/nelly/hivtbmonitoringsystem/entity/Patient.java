@@ -66,6 +66,10 @@ public class Patient {
     private String district;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private SystemUser user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chw_id", nullable = false)
     private Chw chw;
 

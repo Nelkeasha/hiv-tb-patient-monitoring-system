@@ -9,6 +9,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "medication_records")
@@ -24,11 +25,8 @@ public class MedicationRecord {
     private Patient patient;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chw_id", nullable = false)
-    private Chw chw;
-
-    @Column(name = "medication_name", nullable = false, length = 100)
-    private String medicationName;
+    @JoinColumn(name = "plan_id")
+    private TreatmentPlan plan;
 
     @Column(name = "period_start", nullable = false)
     private LocalDate periodStart;
@@ -39,8 +37,11 @@ public class MedicationRecord {
     @Column(name = "doses_scheduled", nullable = false)
     private Integer dosesScheduled;
 
-    @Column(name = "doses_taken", nullable = false)
-    private Integer dosesTaken;
+    @Column(name = "doses_confirmed", nullable = false)
+    private Integer dosesConfirmed;
+
+    @Column(name = "doses_verified", nullable = false)
+    private Integer dosesVerified;
 
     @Column(name = "adherence_pct", nullable = false, precision = 5, scale = 2)
     private BigDecimal adherencePct;
@@ -48,19 +49,27 @@ public class MedicationRecord {
     @Column(name = "below_threshold")
     private Boolean belowThreshold = false;
 
-    @Column(name = "fhir_resource_id", length = 100)
-    private String fhirResourceId;
+    @Column(name = "false_confirmation_flag")
+    private Boolean falseConfirmationFlag = false;
+
+    @Column(name = "fhir_statement_id", length = 100)
+    private String fhirStatementId;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "sync_status", columnDefinition = "sync_status")
     private SyncStatus syncStatus = SyncStatus.PENDING;
 
-    @Column(name = "calculated_at", updatable = false)
-    private LocalDateTime calculatedAt;
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @PrePersist
     protected void onCreate() {
-        calculatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

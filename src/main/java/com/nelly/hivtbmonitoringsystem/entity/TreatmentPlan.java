@@ -1,7 +1,10 @@
 package com.nelly.hivtbmonitoringsystem.entity;
 
+import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -21,12 +24,14 @@ public class TreatmentPlan {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "provider_id")
-    private FacilityProvider provider;
+    @Column(name = "medication_name", nullable = false, length = 100)
+    private String medicationName;
 
-    @Column(nullable = false, length = 200)
-    private String regimen;
+    @Column(nullable = false, length = 50)
+    private String dosage;
+
+    @Column(nullable = false, length = 50)
+    private String frequency;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
@@ -40,8 +45,14 @@ public class TreatmentPlan {
     @Column(name = "fhir_care_plan_id", length = 100)
     private String fhirCarePlanId;
 
-    @Column(columnDefinition = "TEXT")
-    private String notes;
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "sync_status", columnDefinition = "sync_status")
+    private SyncStatus syncStatus = SyncStatus.PENDING;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private SystemUser createdBy;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
