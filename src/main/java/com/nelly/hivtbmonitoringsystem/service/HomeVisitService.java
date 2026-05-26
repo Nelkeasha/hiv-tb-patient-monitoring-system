@@ -73,6 +73,11 @@ public class HomeVisitService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    public List<HomeVisitResponse> getVisitsForPatientAdmin(UUID patientId) {
+        return visitRepository.findByPatientIdOrderByVisitDateDesc(patientId)
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     public HomeVisitResponse getVisit(UUID visitId) {
         Chw chw = resolveCurrentChw();
         HomeVisit visit = visitRepository.findById(visitId)

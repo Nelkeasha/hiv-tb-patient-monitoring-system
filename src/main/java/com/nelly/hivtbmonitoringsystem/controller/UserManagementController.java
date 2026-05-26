@@ -3,8 +3,12 @@ package com.nelly.hivtbmonitoringsystem.controller;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateChwRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateProviderRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateSupervisorRequest;
+import com.nelly.hivtbmonitoringsystem.dto.response.HomeVisitResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.StaffResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.UserSummaryResponse;
+import com.nelly.hivtbmonitoringsystem.service.HomeVisitService;
+import com.nelly.hivtbmonitoringsystem.service.PatientService;
 import com.nelly.hivtbmonitoringsystem.service.UserManagementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +27,8 @@ import java.util.UUID;
 public class UserManagementController {
 
     private final UserManagementService userManagementService;
+    private final PatientService patientService;
+    private final HomeVisitService homeVisitService;
 
     @PostMapping("/chw")
     public ResponseEntity<StaffResponse> createChw(@Valid @RequestBody CreateChwRequest request) {
@@ -52,5 +58,17 @@ public class UserManagementController {
     @PutMapping("/{id}/reset-password")
     public ResponseEntity<StaffResponse> resetPassword(@PathVariable UUID id) {
         return ResponseEntity.ok(userManagementService.resetPassword(id));
+    }
+
+    /** All active patients system-wide — used by the AI microservice. */
+    @GetMapping("/patients")
+    public ResponseEntity<List<PatientResponse>> getAllActivePatients() {
+        return ResponseEntity.ok(patientService.getAllActivePatients());
+    }
+
+    /** Home visits for a patient — used by the AI microservice. */
+    @GetMapping("/patients/{patientId}/visits")
+    public ResponseEntity<List<HomeVisitResponse>> getPatientVisits(@PathVariable UUID patientId) {
+        return ResponseEntity.ok(homeVisitService.getVisitsForPatientAdmin(patientId));
     }
 }

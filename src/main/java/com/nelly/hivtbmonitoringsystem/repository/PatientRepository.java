@@ -24,4 +24,5 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findByFacilityIdAndIsActiveTrue(UUID facilityId);
     List<Patient> findByChwIdAndSyncStatus(UUID chwId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
     long countByFacilityIdAndSyncStatus(UUID facilityId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
+    List<Patient> findAllByIsActiveTrue();
 }

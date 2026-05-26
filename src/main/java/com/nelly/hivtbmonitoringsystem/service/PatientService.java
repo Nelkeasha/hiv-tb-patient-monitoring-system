@@ -79,6 +79,11 @@ public class PatientService {
         return toResponse(patient);
     }
 
+    public List<PatientResponse> getAllActivePatients() {
+        return patientRepository.findAllByIsActiveTrue()
+                .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     @Transactional
     public PatientResponse updatePatient(UUID patientId, UpdatePatientRequest req) {
         Chw chw = resolveCurrentChw();
