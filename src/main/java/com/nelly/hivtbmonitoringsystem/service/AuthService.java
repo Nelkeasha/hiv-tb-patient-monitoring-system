@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
+import com.nelly.hivtbmonitoringsystem.dto.request.ChangePasswordRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.LoginRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RefreshTokenRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.AuthResponse;
@@ -29,6 +30,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @Value("${app.jwt.refresh-expiration}")
     private long refreshExpiration;
@@ -52,7 +54,22 @@ public class AuthService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .role(user.getRole().name())
+                .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                 .build();
+    }
+
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        SystemUser user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
     }
 
     @Transactional

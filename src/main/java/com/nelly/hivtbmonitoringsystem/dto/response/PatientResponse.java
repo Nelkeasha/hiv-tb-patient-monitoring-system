@@ -33,4 +33,6 @@ public class PatientResponse {
     private String syncStatus;
     private Boolean isActive;
     private LocalDateTime createdAt;
+    private String loginEmail;
+    private String temporaryPassword;
 }

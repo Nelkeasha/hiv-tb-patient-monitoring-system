@@ -77,6 +77,12 @@ public class TreatmentPlanService {
                 .stream().map(this::toResponse).toList();
     }
 
+    /** Used by patients to fetch their own treatment plans (no CHW auth check). */
+    public List<TreatmentPlanResponse> getOwnPatientPlans(UUID patientId) {
+        return treatmentPlanRepository.findByPatientId(patientId)
+                .stream().map(this::toResponse).toList();
+    }
+
     public TreatmentPlanResponse getPlan(UUID planId) {
         TreatmentPlan plan = findAndAuthorize(planId);
         return toResponse(plan);

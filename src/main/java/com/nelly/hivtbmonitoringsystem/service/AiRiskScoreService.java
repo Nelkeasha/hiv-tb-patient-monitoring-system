@@ -151,6 +151,8 @@ public class AiRiskScoreService {
                 .windowViolationDetected(s.getWindowViolationDetected())
                 .recommendedAction(s.getRecommendedAction())
                 .calculatedAt(s.getCalculatedAt())
+                .adherence7d(s.getMissedDoses7d() != null ? Math.max(0, (7 - s.getMissedDoses7d()) / 7.0) : null)
+                .adherence30d(s.getMissedDoses30d() != null ? Math.max(0, (30 - s.getMissedDoses30d()) / 30.0) : null)
                 .build();
     }
 }

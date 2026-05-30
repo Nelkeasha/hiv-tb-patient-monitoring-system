@@ -139,11 +139,14 @@ public class PatientConfirmationService {
     }
 
     private ConfirmationLogResponse toResponse(ConfirmationLog c) {
+        String medName = (c.getSchedule() != null && c.getSchedule().getDoseLabel() != null)
+                ? c.getSchedule().getDoseLabel() : "Medication";
         return ConfirmationLogResponse.builder()
                 .id(c.getId())
                 .patientId(c.getPatient().getId())
                 .planId(c.getPlan() != null ? c.getPlan().getId() : null)
                 .scheduleId(c.getSchedule() != null ? c.getSchedule().getId() : null)
+                .medicationName(medName)
                 .scheduledDate(c.getScheduledDate())
                 .windowOpenTime(c.getWindowOpenTime())
                 .windowCloseTime(c.getWindowCloseTime())

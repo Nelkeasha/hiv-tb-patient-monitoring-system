@@ -2,7 +2,6 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -10,17 +9,18 @@ import java.time.LocalDate;
 @Data
 public class EnrollPatientRequest {
 
-    @NotBlank
     private String patientCode;
 
     @NotBlank
     private String fullName;
 
-    @NotNull
     private LocalDate dateOfBirth;
 
-    @NotBlank
+    /** Accepts "sex" field name. */
     private String sex;
+
+    /** Alias — Flutter sends "gender", mapped to sex in service. */
+    private String gender;
 
     private String nationalId;
 
@@ -28,8 +28,12 @@ public class EnrollPatientRequest {
 
     private Boolean hasSmartphone = false;
 
-    @NotNull
+    /** Preferred: single diagnosisType enum value. */
     private DiagnosisType diagnosisType;
+
+    /** Alternative: Flutter sends hivStatus + tbStatus separately. */
+    private String hivStatus;
+    private String tbStatus;
 
     private LocalDate artStartDate;
 

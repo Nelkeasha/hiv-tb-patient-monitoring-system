@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.service.FacilityDashboardService;
+import com.nelly.hivtbmonitoringsystem.service.FacilityReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class FacilityDashboardController {
 
     private final FacilityDashboardService dashboardService;
+    private final FacilityReportService reportService;
 
     /** Facility-level summary: patient counts, CHW count, risk distribution, adherence average. */
     @GetMapping("/stats")
@@ -47,5 +49,11 @@ public class FacilityDashboardController {
     @GetMapping("/adherence/below-threshold")
     public ResponseEntity<List<FacilityPatientSummaryResponse>> getBelowThresholdPatients() {
         return ResponseEntity.ok(dashboardService.getBelowThresholdPatients());
+    }
+
+    /** Aggregated facility report: patient overview, risk distribution, adherence, referrals, alerts, CHW performance. */
+    @GetMapping("/reports/summary")
+    public ResponseEntity<FacilityReportResponse> getReportSummary() {
+        return ResponseEntity.ok(reportService.generateSummary());
     }
 }

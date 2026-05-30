@@ -30,4 +30,9 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
             "AND a.isResolved = false ORDER BY a.createdAt DESC")
     List<Alert> findUnresolvedAlertsForFacilityChws(
             @org.springframework.data.repository.query.Param("facilityId") UUID facilityId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT a FROM Alert a WHERE a.patient.facility.id = :facilityId ORDER BY a.createdAt DESC")
+    List<Alert> findByPatientFacilityId(
+            @org.springframework.data.repository.query.Param("facilityId") UUID facilityId);
 }

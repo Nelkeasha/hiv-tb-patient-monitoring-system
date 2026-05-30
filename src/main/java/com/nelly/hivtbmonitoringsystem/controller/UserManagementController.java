@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.controller;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateChwRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateProviderRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateSupervisorRequest;
+import com.nelly.hivtbmonitoringsystem.dto.response.FacilityResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.HomeVisitResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.StaffResponse;
@@ -48,6 +49,11 @@ public class UserManagementController {
     @GetMapping
     public ResponseEntity<List<UserSummaryResponse>> getAllUsers() {
         return ResponseEntity.ok(userManagementService.getAllUsers());
+    }
+
+    @GetMapping("/facilities")
+    public ResponseEntity<List<FacilityResponse>> getFacilities() {
+        return ResponseEntity.ok(userManagementService.getFacilities());
     }
 
     @PutMapping("/{id}/toggle-status")

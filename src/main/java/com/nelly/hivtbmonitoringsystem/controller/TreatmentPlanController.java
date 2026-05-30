@@ -19,7 +19,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/chw/treatment-plans")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('CHW')")
+@PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER')")
 public class TreatmentPlanController {
 
     private final TreatmentPlanService treatmentPlanService;

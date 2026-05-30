@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.service.SupervisorDashboardService;
+import com.nelly.hivtbmonitoringsystem.service.SupervisorReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class SupervisorDashboardController {
 
     private final SupervisorDashboardService dashboardService;
+    private final SupervisorReportService reportService;
 
     /** Operational overview: CHW counts, risk distribution, visit activity, missed dose totals. */
     @GetMapping("/stats")
@@ -46,5 +48,11 @@ public class SupervisorDashboardController {
     @GetMapping("/alerts")
     public ResponseEntity<List<AlertResponse>> getFacilityAlerts() {
         return ResponseEntity.ok(dashboardService.getFacilityAlerts());
+    }
+
+    /** Aggregated supervisor report: workforce, patients, risk distribution, adherence, alerts, CHW performance. */
+    @GetMapping("/reports/summary")
+    public ResponseEntity<SupervisorReportResponse> getReportSummary() {
+        return ResponseEntity.ok(reportService.generateSummary());
     }
 }

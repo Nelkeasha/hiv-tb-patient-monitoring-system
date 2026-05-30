@@ -176,4 +176,3 @@ Python AI Microservice (nightly risk scoring)
 Next.js Web Dashboard (providers & supervisors)
         ↓
 HAPI FHIR Gateway (HL7 FHIR R4)
-```

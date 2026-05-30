@@ -39,6 +39,9 @@ public class SystemUser {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "must_change_password")
+    private Boolean mustChangePassword = false;
+
     @Column(name = "preferred_language", length = 10)
     private String preferredLanguage = "rw";
 

@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.service;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateChwRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateProviderRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateSupervisorRequest;
+import com.nelly.hivtbmonitoringsystem.dto.response.FacilityResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.StaffResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.UserSummaryResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
@@ -52,6 +53,7 @@ public class UserManagementService {
                 .passwordHash(passwordEncoder.encode(tempPassword))
                 .role(UserRole.CHW)
                 .isActive(true)
+                .mustChangePassword(true)
                 .preferredLanguage("rw")
                 .build();
         userRepository.save(user);
@@ -95,6 +97,7 @@ public class UserManagementService {
                 .passwordHash(passwordEncoder.encode(tempPassword))
                 .role(UserRole.FACILITY_PROVIDER)
                 .isActive(true)
+                .mustChangePassword(true)
                 .preferredLanguage("rw")
                 .build();
         userRepository.save(user);
@@ -136,6 +139,7 @@ public class UserManagementService {
                 .passwordHash(passwordEncoder.encode(tempPassword))
                 .role(UserRole.SUPERVISOR)
                 .isActive(true)
+                .mustChangePassword(true)
                 .preferredLanguage("rw")
                 .build();
         userRepository.save(user);
@@ -198,6 +202,7 @@ public class UserManagementService {
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
         String tempPassword = generateTempPassword();
         user.setPasswordHash(passwordEncoder.encode(tempPassword));
+        user.setMustChangePassword(true);
         userRepository.save(user);
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -206,6 +211,18 @@ public class UserManagementService {
                 .role(user.getRole().name())
                 .temporaryPassword(tempPassword)
                 .build();
+    }
+
+    public List<FacilityResponse> getFacilities() {
+        return facilityRepository.findAll().stream()
+                .map(f -> FacilityResponse.builder()
+                        .id(f.getId())
+                        .name(f.getName())
+                        .location(f.getLocation())
+                        .district(f.getDistrict())
+                        .isActive(f.getIsActive())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private Facility findFacility(UUID facilityId) {

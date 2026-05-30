@@ -14,6 +14,7 @@ public class ConfirmationLogResponse {
     private UUID patientId;
     private UUID planId;
     private UUID scheduleId;
+    private String medicationName;
     private LocalDate scheduledDate;
     private LocalDateTime windowOpenTime;
     private LocalDateTime windowCloseTime;

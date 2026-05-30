@@ -27,4 +27,6 @@ public class AiRiskScoreResponse {
     private Boolean windowViolationDetected;
     private String recommendedAction;
     private LocalDateTime calculatedAt;
+    private Double adherence7d;
+    private Double adherence30d;
 }
