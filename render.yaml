@@ -1,10 +1,9 @@
 services:
   - type: web
     name: hivtb-rw-api
-    runtime: java
+    runtime: docker
     plan: free
-    buildCommand: "./mvnw clean package -DskipTests"
-    startCommand: "java -Xmx512m -jar target/hivtb-monitoring-system-0.0.1-SNAPSHOT.jar"
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/auth/login
     envVars:
       - key: SPRING_DATASOURCE_URL
