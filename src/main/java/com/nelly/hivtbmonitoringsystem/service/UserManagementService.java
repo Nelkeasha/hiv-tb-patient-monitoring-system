@@ -37,6 +37,7 @@ public class UserManagementService {
     private final SupervisorRepository supervisorRepository;
     private final FacilityRepository facilityRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public StaffResponse createChw(CreateChwRequest req) {
@@ -67,6 +68,7 @@ public class UserManagementService {
                 .isActive(true)
                 .build();
         chwRepository.save(chw);
+        auditLogService.log("CREATE_USER", "system_users", user.getId());
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -109,6 +111,7 @@ public class UserManagementService {
                 .licenseNumber(req.getLicenseNumber())
                 .build();
         providerRepository.save(provider);
+        auditLogService.log("CREATE_USER", "system_users", user.getId());
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -150,6 +153,7 @@ public class UserManagementService {
                 .district(req.getDistrict())
                 .build();
         supervisorRepository.save(supervisor);
+        auditLogService.log("CREATE_USER", "system_users", user.getId());
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -183,8 +187,10 @@ public class UserManagementService {
     public UserSummaryResponse toggleUserStatus(UUID userId) {
         SystemUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
-        user.setIsActive(!user.getIsActive());
+        boolean wasActive = Boolean.TRUE.equals(user.getIsActive());
+        user.setIsActive(!wasActive);
         userRepository.save(user);
+        auditLogService.log(wasActive ? "DEACTIVATE_USER" : "ACTIVATE_USER", "system_users", user.getId());
         return UserSummaryResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
@@ -204,6 +210,7 @@ public class UserManagementService {
         user.setPasswordHash(passwordEncoder.encode(tempPassword));
         user.setMustChangePassword(true);
         userRepository.save(user);
+        auditLogService.log("RESET_PASSWORD", "system_users", user.getId());
         return StaffResponse.builder()
                 .userId(user.getId())
                 .fullName(user.getFullName())

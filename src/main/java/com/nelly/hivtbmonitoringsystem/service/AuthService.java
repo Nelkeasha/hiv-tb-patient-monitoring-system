@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.dto.request.ChangePasswordRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.LoginRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RefreshTokenRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.AuthResponse;
+
 import com.nelly.hivtbmonitoringsystem.entity.RefreshToken;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.repository.RefreshTokenRepository;
@@ -31,6 +32,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     @Value("${app.jwt.refresh-expiration}")
     private long refreshExpiration;
@@ -46,6 +48,8 @@ public class AuthService {
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
         String accessToken = jwtUtil.generateToken(userDetails, user.getRole().name());
         String refreshTokenValue = generateRefreshToken(user);
+
+        auditLogService.log("LOGIN", "system_users", user.getId());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -70,6 +74,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setMustChangePassword(false);
         userRepository.save(user);
+        auditLogService.log("CHANGE_PASSWORD", "system_users", user.getId());
     }
 
     @Transactional

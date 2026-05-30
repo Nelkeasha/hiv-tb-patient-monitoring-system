@@ -31,6 +31,7 @@ public class PatientService {
     private final SystemUserRepository userRepository;
     private final ChwRepository chwRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public PatientResponse enrollPatient(EnrollPatientRequest req) {
@@ -104,6 +105,7 @@ public class PatientService {
             patientRepository.save(patient);
         }
 
+        auditLogService.log("REGISTER_PATIENT", "patients", patient.getId());
         return toResponse(patient, loginEmail, temporaryPassword);
     }
 

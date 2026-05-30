@@ -28,6 +28,7 @@ public class HomeVisitService {
     private final PatientRepository patientRepository;
     private final SystemUserRepository userRepository;
     private final ChwRepository chwRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public HomeVisitResponse recordVisit(RecordVisitRequest req) {
@@ -59,6 +60,7 @@ public class HomeVisitService {
                 .build();
 
         visitRepository.save(visit);
+        auditLogService.log("RECORD_VISIT", "home_visits", visit.getId());
         return toResponse(visit);
     }
 
