@@ -63,6 +63,7 @@ public class DataInitializer implements ApplicationRunner {
                 .passwordHash(passwordEncoder.encode("Admin@2026"))
                 .role(UserRole.SYSTEM_ADMIN)
                 .isActive(true)
+                .mustChangePassword(false)
                 .preferredLanguage("en")
                 .build();
 
