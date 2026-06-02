@@ -25,17 +25,17 @@ public class AdminReportService {
     private final AiRiskScoreRepository aiRiskScoreRepository;
     private final MedicationRecordRepository medicationRecordRepository;
     private final AlertRepository alertRepository;
-    private final StockRecordRepository stockRecordRepository;
 
     public AdminReportResponse generateSummary() {
 
         // ── System users ──────────────────────────────────────────────────────
         List<SystemUser> allUsers = userRepository.findAll();
-        long totalChw        = countRole(allUsers, UserRole.CHW);
-        long totalProviders  = countRole(allUsers, UserRole.FACILITY_PROVIDER);
+        long totalChw         = countRole(allUsers, UserRole.CHW);
+        long totalProviders   = countRole(allUsers, UserRole.FACILITY_PROVIDER)
+                              + countRole(allUsers, UserRole.CLINICAL_STAFF);
         long totalSupervisors = countRole(allUsers, UserRole.SUPERVISOR);
-        long totalPatients   = countRole(allUsers, UserRole.PATIENT);
-        long activeUsers     = allUsers.stream().filter(u -> Boolean.TRUE.equals(u.getIsActive())).count();
+        long totalPatients    = countRole(allUsers, UserRole.PATIENT);
+        long activeUsers      = allUsers.stream().filter(u -> Boolean.TRUE.equals(u.getIsActive())).count();
 
         // ── Facilities ────────────────────────────────────────────────────────
         List<Facility> allFacilities = facilityRepository.findAll();
@@ -48,24 +48,16 @@ public class AdminReportService {
         long tbOnly  = countDiagnosis(activePatients, DiagnosisType.TB);
         long hivTb   = countDiagnosis(activePatients, DiagnosisType.HIV_TB_COINFECTION);
 
-        // FHIR sync status
         long fhirPending = countSync(activePatients, SyncStatus.PENDING);
         long fhirSynced  = countSync(activePatients, SyncStatus.SYNCED);
         long fhirFailed  = countSync(activePatients, SyncStatus.FAILED);
 
-        // ── Risk distribution (system-wide, latest score per patient) ─────────
-        Set<UUID> activePatientIds = activePatients.stream()
-                .map(Patient::getId).collect(Collectors.toSet());
-
-        // Collect all latest risk scores across all patients
-        // We use findLatestHighRiskScores for HIGH+CRITICAL and loop per active patient
-        // For simplicity, collect all scores and keep only the latest per patient
+        // ── Risk distribution (latest score per active patient) ───────────────
         Map<UUID, RiskLevel> riskByPatient = new HashMap<>();
         for (Patient p : activePatients) {
             aiRiskScoreRepository.findTopByPatientIdOrderByCalculatedAtDesc(p.getId())
                     .ifPresent(s -> riskByPatient.put(p.getId(), s.getRiskLevel()));
         }
-
         long riskLow      = countRisk(riskByPatient, RiskLevel.LOW);
         long riskModerate = countRisk(riskByPatient, RiskLevel.MODERATE);
         long riskHigh     = countRisk(riskByPatient, RiskLevel.HIGH);
@@ -86,28 +78,28 @@ public class AdminReportService {
                         .filter(r -> r.getPatient().getId().equals(id))
                         .anyMatch(r -> Boolean.TRUE.equals(r.getBelowThreshold())))
                 .count();
-
         long falseFlags = allRecords.stream()
                 .filter(r -> Boolean.TRUE.equals(r.getFalseConfirmationFlag())).count();
 
         // ── Alerts (system-wide, unresolved) ──────────────────────────────────
         List<Alert> allUnresolved = alertRepository.findByIsResolvedFalse();
-        long criticalAlerts  = allUnresolved.stream()
+        long criticalAlerts   = allUnresolved.stream()
                 .filter(a -> a.getSeverity() == AlertSeverity.CRITICAL).count();
-        long warningAlerts   = allUnresolved.stream()
+        long warningAlerts    = allUnresolved.stream()
                 .filter(a -> a.getSeverity() == AlertSeverity.WARNING).count();
         long missedDoseAlerts = allUnresolved.stream()
                 .filter(a -> a.getAlertType() == AlertType.MISSED_DOSE).count();
 
-        // ── Stock ─────────────────────────────────────────────────────────────
-        List<StockRecord> allStock = stockRecordRepository.findAll();
-        long lowStockItems = allStock.stream()
-                .filter(s -> s.getCurrentQuantity() <= s.getReorderLevel()).count();
-        long pendingResupply = allStock.stream()
-                .filter(s -> Boolean.TRUE.equals(s.getResupplyRequested())).count();
+        // ── LTFU stats (replaces stock section) ───────────────────────────────
+        long activeLtfuAlerts   = allUnresolved.stream()
+                .filter(a -> a.getAlertType() == AlertType.LTFU_TRACING).count();
+        long ltfuConfirmedAlerts = allUnresolved.stream()
+                .filter(a -> a.getAlertType() == AlertType.LTFU_CONFIRMED).count();
+        long escalatedAlerts    = allUnresolved.stream()
+                .filter(a -> a.getSeverity() == AlertSeverity.CRITICAL
+                          && a.getAlertType() == AlertType.LTFU_CONFIRMED).count();
 
         // ── Per-facility breakdown ────────────────────────────────────────────
-        List<MedicationRecord> allMedRecords = allRecords; // same list
         List<Alert> allPatientAlerts = alertRepository.findAll().stream()
                 .filter(a -> a.getPatient() != null && !Boolean.TRUE.equals(a.getIsResolved()))
                 .toList();
@@ -120,10 +112,9 @@ public class AdminReportService {
                             .filter(p -> p.getFacility().getId().equals(fid)).count();
                     long fChws = chwRepository.findByFacilityId(fid).size();
 
-                    OptionalDouble fAvg = allMedRecords.stream()
+                    OptionalDouble fAvg = allRecords.stream()
                             .filter(r -> r.getPatient().getFacility().getId().equals(fid))
-                            .mapToDouble(r -> r.getAdherencePct().doubleValue())
-                            .average();
+                            .mapToDouble(r -> r.getAdherencePct().doubleValue()).average();
                     BigDecimal fAdherence = fAvg.isPresent()
                             ? BigDecimal.valueOf(fAvg.getAsDouble()).setScale(1, RoundingMode.HALF_UP)
                             : null;
@@ -182,12 +173,13 @@ public class AdminReportService {
                 .criticalAlerts(criticalAlerts)
                 .warningAlerts(warningAlerts)
                 .missedDoseAlerts(missedDoseAlerts)
-                .lowStockItems(lowStockItems)
-                .pendingResupplyRequests(pendingResupply)
+                .activeLtfuTasks(activeLtfuAlerts)
+                .ltfuConfirmedCount(ltfuConfirmedAlerts)
+                .escalatedCount(escalatedAlerts)
                 .build();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private long countRole(List<SystemUser> users, UserRole role) {
         return users.stream().filter(u -> u.getRole() == role).count();

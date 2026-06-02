@@ -8,6 +8,7 @@ import com.nelly.hivtbmonitoringsystem.enums.AlertType;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -122,6 +123,46 @@ public class AlertService {
                         patient.getFullName(),
                         plan.getMedicationName(),
                         LocalDate.now()))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        alertRepository.save(alert);
+    }
+
+    // ── Called internally by TracingTaskService ──────────────────────────────
+
+    @Transactional
+    public void createLtfuTracingAlert(Patient patient, Chw chw, TracingTask task, AlertSeverity severity) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.LTFU_TRACING)
+                .severity(severity)
+                .title("LTFU Tracing Required — " + patient.getFullName())
+                .message(String.format(
+                        "Patient %s (%s) missed their facility appointment on %s. " +
+                        "Days since missed: %d. Reason: %s. Please conduct a tracing visit.",
+                        patient.getFullName(), patient.getPatientCode(),
+                        task.getMissedAppointmentDate(), task.getDaysSinceMissed(), task.getReason()))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        alertRepository.save(alert);
+    }
+
+    @Transactional
+    public void createLtfuConfirmedAlert(Patient patient, Chw chw, TracingTask task) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.LTFU_CONFIRMED)
+                .severity(AlertSeverity.CRITICAL)
+                .title("LTFU Confirmed — " + patient.getFullName())
+                .message(String.format(
+                        "Patient %s (%s) is officially Lost to Follow-Up after %d days without contact " +
+                        "since %s. Status escalated to supervisor. Immediate action required.",
+                        patient.getFullName(), patient.getPatientCode(),
+                        task.getDaysSinceMissed(), task.getMissedAppointmentDate()))
                 .isRead(false)
                 .isResolved(false)
                 .build();

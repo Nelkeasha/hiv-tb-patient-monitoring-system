@@ -1,11 +1,15 @@
 package com.nelly.hivtbmonitoringsystem.enums;
 
+/**
+ * Alert types as defined in the thesis data dictionary (Table 18).
+ * LTFU_TRACING and LTFU_CONFIRMED added per Update 2.
+ * LOW_ADHERENCE, LOW_STOCK, MISSED_VISIT removed per Update 1.
+ */
 public enum AlertType {
     MISSED_DOSE,
-    LOW_ADHERENCE,
     FALSE_CONFIRMATION,
-    LOW_STOCK,
     CLINICAL_DISCREPANCY,
     EARLY_WARNING,
-    MISSED_VISIT
+    LTFU_TRACING,
+    LTFU_CONFIRMED
 }

@@ -38,6 +38,7 @@ public class UserManagementService {
     private final FacilityRepository facilityRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
 
     @Transactional
     public StaffResponse createChw(CreateChwRequest req) {
@@ -69,6 +70,7 @@ public class UserManagementService {
                 .build();
         chwRepository.save(chw);
         auditLogService.log("CREATE_USER", "system_users", user.getId());
+        notificationService.notifyNewUser(user.getEmail(), user.getFullName(), "CHW", tempPassword);
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -112,6 +114,7 @@ public class UserManagementService {
                 .build();
         providerRepository.save(provider);
         auditLogService.log("CREATE_USER", "system_users", user.getId());
+        notificationService.notifyNewUser(user.getEmail(), user.getFullName(), "Facility Provider", tempPassword);
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -154,6 +157,7 @@ public class UserManagementService {
                 .build();
         supervisorRepository.save(supervisor);
         auditLogService.log("CREATE_USER", "system_users", user.getId());
+        notificationService.notifyNewUser(user.getEmail(), user.getFullName(), "Supervisor", tempPassword);
 
         return StaffResponse.builder()
                 .userId(user.getId())
@@ -211,6 +215,7 @@ public class UserManagementService {
         user.setMustChangePassword(true);
         userRepository.save(user);
         auditLogService.log("RESET_PASSWORD", "system_users", user.getId());
+        notificationService.notifyPasswordReset(user.getEmail(), user.getFullName(), tempPassword);
         return StaffResponse.builder()
                 .userId(user.getId())
                 .fullName(user.getFullName())

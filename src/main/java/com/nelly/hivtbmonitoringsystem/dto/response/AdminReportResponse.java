@@ -55,7 +55,8 @@ public class AdminReportResponse {
     private long warningAlerts;
     private long missedDoseAlerts;
 
-    // Stock
-    private long lowStockItems;
-    private long pendingResupplyRequests;
+    // LTFU tracing (replaces stock section)
+    private long activeLtfuTasks;
+    private long ltfuConfirmedCount;
+    private long escalatedCount;
 }
