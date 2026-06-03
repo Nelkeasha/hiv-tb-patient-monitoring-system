@@ -191,6 +191,25 @@ public class PatientService {
         patient.setSyncStatus(SyncStatus.PENDING);
 
         patientRepository.save(patient);
+
+        // Create app account if patient has a smartphone and no account yet
+        if (Boolean.TRUE.equals(patient.getHasSmartphone()) && patient.getUser() == null) {
+            String tempPass = generateTempPassword();
+            String loginEmail = patient.getPatientCode().toLowerCase() + "@hivtb.rw";
+            SystemUser patientUser = SystemUser.builder()
+                    .fullName(patient.getFullName())
+                    .email(loginEmail)
+                    .phoneNumber(patient.getPhoneNumber())
+                    .passwordHash(passwordEncoder.encode(tempPass))
+                    .role(UserRole.PATIENT)
+                    .isActive(true)
+                    .mustChangePassword(true)
+                    .preferredLanguage("rw")
+                    .build();
+            patientUser = userRepository.save(patientUser);
+            patient.setUser(patientUser);
+            patientRepository.save(patient);
+        }
         auditLogService.log("CONFIRM_PATIENT", "patients", patient.getId());
 
         // Notify the CHW who screened this patient
@@ -285,6 +304,29 @@ public class PatientService {
 
     public List<PatientResponse> getProvisionalPatients() {
         return patientRepository.findByRegistrationStatus("PROVISIONAL")
+                .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
+    }
+
+    /** Single patient — CHW must own the patient; clinical/supervisor/admin can read any. */
+    public PatientResponse getPatientForAnyRole(UUID patientId) {
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        SystemUser currentUser = resolveCurrentUser();
+        if (currentUser.getRole() == UserRole.CHW) {
+            Chw chw = chwRepository.findByUserId(currentUser.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "CHW profile not found"));
+            if (!patient.getChw().getId().equals(chw.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
+            }
+        }
+
+        return toResponse(patient, null, null);
+    }
+
+    /** All patients assigned to a specific CHW — for supervisors/clinical staff. */
+    public List<PatientResponse> getPatientsForChw(UUID chwId) {
+        return patientRepository.findByChwId(chwId)
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 
