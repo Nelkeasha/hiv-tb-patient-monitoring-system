@@ -24,7 +24,7 @@ public class ReferralController {
     // ── CHW endpoints ─────────────────────────────────────────────────────────
 
     @PostMapping("/api/chw/referrals")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ReferralResponse> createReferral(
             @Valid @RequestBody CreateReferralRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -32,13 +32,13 @@ public class ReferralController {
     }
 
     @GetMapping("/api/chw/referrals")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<ReferralResponse>> getChwReferrals() {
         return ResponseEntity.ok(referralService.getChwReferrals());
     }
 
     @GetMapping("/api/chw/referrals/patient/{patientId}")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<ReferralResponse>> getChwPatientReferrals(
             @PathVariable UUID patientId) {
         return ResponseEntity.ok(referralService.getChwPatientReferrals(patientId));
@@ -47,19 +47,19 @@ public class ReferralController {
     // ── Clinical / Facility Provider endpoints ────────────────────────────────
 
     @GetMapping("/api/clinical/referrals")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<ReferralResponse>> getFacilityReferrals() {
         return ResponseEntity.ok(referralService.getFacilityReferrals());
     }
 
     @GetMapping("/api/clinical/referrals/pending")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<ReferralResponse>> getFacilityPendingReferrals() {
         return ResponseEntity.ok(referralService.getFacilityPendingReferrals());
     }
 
     @PutMapping("/api/clinical/referrals/{referralId}/confirm")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ReferralResponse> confirmReferral(
             @PathVariable UUID referralId,
             @Valid @RequestBody ConfirmReferralRequest request) {
@@ -67,7 +67,7 @@ public class ReferralController {
     }
 
     @PutMapping("/api/clinical/referrals/{referralId}/attendance")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ReferralResponse> recordAttendance(
             @PathVariable UUID referralId,
             @Valid @RequestBody RecordAttendanceRequest request) {
@@ -75,7 +75,7 @@ public class ReferralController {
     }
 
     @PutMapping("/api/clinical/referrals/{referralId}/cancel")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ReferralResponse> cancelReferral(@PathVariable UUID referralId) {
         return ResponseEntity.ok(referralService.cancelReferral(referralId));
     }

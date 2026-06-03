@@ -1,10 +1,10 @@
 package com.nelly.hivtbmonitoringsystem.scheduler;
 
-import com.nelly.hivtbmonitoringsystem.entity.TracingTask;
+import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
-import com.nelly.hivtbmonitoringsystem.repository.TracingTaskRepository;
+import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.service.AlertService;
-import com.nelly.hivtbmonitoringsystem.service.TracingTaskService;
+import com.nelly.hivtbmonitoringsystem.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,16 +15,28 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * Daily LTFU lifecycle manager.
+ * Daily LTFU lifecycle manager — runs at 06:00 every day.
  *
- * Per Rwanda national LTFU protocol and thesis REQ-14 / REQ-15:
- *   Day  0–13 → LATE     (patient missed appointment, CHW notified)
- *   Day 14–29 → CHW_ASSIGNED (escalate to active CHW tracing assignment)
- *   Day 30+   → LTFU_CONFIRMED (officially Lost to Follow-Up, supervisor escalated)
+ * Two phases per run:
  *
- * Runs at 06:00 every day (before CHW morning priority list generation).
+ * PHASE 1 — Auto-detect missed appointments (creates NEW tracing tasks):
+ *   Source A: Confirmed referrals where facility_appointment_date has passed
+ *             but status is still CONFIRMED or MODIFIED (patient never attended).
+ *   Source B: Active patients with no home visit in the last 28 days
+ *             (standard monthly ART/TB refill cycle gap).
+ *
+ * PHASE 2 — Lifecycle progression (updates EXISTING active tasks):
+ *   Day  0–13 → LATE          — initial flag, CHW notified
+ *   Day 14–29 → CHW_ASSIGNED  — active tracing required, CRITICAL alert
+ *   Day 30+   → LTFU_CONFIRMED — officially LTFU per Rwanda national protocol,
+ *                                supervisor escalated
+ *
+ * All notification channels (in-app, email, FCM) fired via NotificationService.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,55 +44,205 @@ import java.util.List;
 public class LtfuScheduler {
 
     private final TracingTaskRepository tracingTaskRepository;
-    private final TracingTaskService tracingTaskService;
+    private final ReferralRepository referralRepository;
+    private final HomeVisitRepository homeVisitRepository;
+    private final PatientRepository patientRepository;
     private final AlertService alertService;
+    private final NotificationService notificationService;
+
+    /** Monthly ART/TB refill cycle — patient should be seen at least every 28 days. */
+    private static final int VISIT_GAP_DAYS = 28;
 
     @Scheduled(cron = "0 0 6 * * *")
     @Transactional
     public void runDailyLtfuCycle() {
-        log.info("LtfuScheduler: starting daily LTFU lifecycle run");
+        log.info("LtfuScheduler: starting daily LTFU cycle");
+
+        int created = detectMissedAppointments();
+        int[] results = progressExistingTasks();
+
+        log.info("LtfuScheduler complete — new_tasks={} updated={} escalated={} ltfu_confirmed={}",
+                created, results[0], results[1], results[2]);
+    }
+
+    // ── Phase 1 — Auto-detect missed appointments ─────────────────────────────
+
+    private int detectMissedAppointments() {
+        LocalDate today = LocalDate.now();
+        int created = 0;
+
+        // Source A: referrals with a confirmed appointment date that has now passed
+        created += detectFromMissedReferrals(today);
+
+        // Source B: active patients with no home visit in the last 28 days
+        created += detectFromVisitGap(today);
+
+        return created;
+    }
+
+    /**
+     * Source A — Referral-based detection.
+     *
+     * A referral is CONFIRMED with a facility_appointment_date set by the provider.
+     * If that date has now passed and the status is still CONFIRMED (not ATTENDED
+     * or NOT_ATTENDED), the patient missed their appointment.
+     */
+    private int detectFromMissedReferrals(LocalDate today) {
+        List<Referral> missed = referralRepository.findMissedAppointments(today);
+        int created = 0;
+
+        for (Referral referral : missed) {
+            Patient patient = referral.getPatient();
+            LocalDate appointmentDate = referral.getFacilityAppointmentDate();
+            Chw chw = patient.getChw();
+
+            if (chw == null || !Boolean.TRUE.equals(patient.getIsActive())) continue;
+
+            // Skip if an open tracing task already exists for this patient + date
+            if (tracingTaskRepository.findOpenTaskByPatientAndDate(
+                    patient.getId(), appointmentDate).isPresent()) {
+                continue;
+            }
+
+            long daysSince = ChronoUnit.DAYS.between(appointmentDate, today);
+
+            TracingTask task = TracingTask.builder()
+                    .patient(patient)
+                    .chw(chw)
+                    .missedAppointmentDate(appointmentDate)
+                    .daysSinceMissed((int) daysSince)
+                    .reason("MISSED_APPOINTMENT")
+                    .status("LATE")
+                    .proxyAuthorized(false)
+                    .build();
+
+            tracingTaskRepository.save(task);
+            notificationService.notifyLtfuLate(patient, chw, task);
+            created++;
+
+            log.info("Tracing task auto-created (missed referral appointment): patient={} date={} days={}",
+                    patient.getId(), appointmentDate, daysSince);
+        }
+
+        return created;
+    }
+
+    /**
+     * Source B — Visit-gap detection.
+     *
+     * Active patients with no recorded home visit in the last 28 days have
+     * likely missed their monthly medication refill. We flag them as LATE
+     * using today − 28 days as the implied missed appointment date.
+     *
+     * Patients already covered by Source A (referral-based) are excluded
+     * via the open-task uniqueness check.
+     */
+    private int detectFromVisitGap(LocalDate today) {
+        LocalDateTime cutoff = today.minusDays(VISIT_GAP_DAYS).atStartOfDay();
+        List<UUID> gapPatientIds = homeVisitRepository.findPatientIdsWithNoVisitSince(cutoff);
+
+        // Also include active patients who have NEVER had a home visit
+        // and whose treatment started more than 28 days ago
+        List<Patient> allActive = patientRepository.findAllByIsActiveTrue();
+        Set<UUID> visitedSet = gapPatientIds.stream().collect(Collectors.toSet());
+
+        // Add patients with no visits at all (never visited)
+        allActive.stream()
+                .filter(p -> homeVisitRepository.countByPatientIdAndVisitDateAfter(
+                        p.getId(), today.minusYears(10).atStartOfDay()) == 0)
+                .filter(p -> p.getArtStartDate() != null &&
+                        ChronoUnit.DAYS.between(p.getArtStartDate(), today) > VISIT_GAP_DAYS)
+                .map(Patient::getId)
+                .forEach(visitedSet::add);
+
+        int created = 0;
+        LocalDate impliedMissedDate = today.minusDays(VISIT_GAP_DAYS);
+
+        for (UUID patientId : visitedSet) {
+            Patient patient = patientRepository.findById(patientId).orElse(null);
+            if (patient == null || !Boolean.TRUE.equals(patient.getIsActive())) continue;
+
+            Chw chw = patient.getChw();
+            if (chw == null) continue;
+
+            // Skip if open task already exists for this patient + implied date
+            if (tracingTaskRepository.findOpenTaskByPatientAndDate(
+                    patient.getId(), impliedMissedDate).isPresent()) {
+                continue;
+            }
+
+            // Also skip if any open task exists within the last 28 days
+            // (avoid duplicate tasks for same patient)
+            boolean hasRecentOpenTask = tracingTaskRepository.findAllActive().stream()
+                    .anyMatch(t -> t.getPatient().getId().equals(patientId) &&
+                              ChronoUnit.DAYS.between(t.getMissedAppointmentDate(), today) <= VISIT_GAP_DAYS);
+            if (hasRecentOpenTask) continue;
+
+            long daysSince = VISIT_GAP_DAYS;
+
+            TracingTask task = TracingTask.builder()
+                    .patient(patient)
+                    .chw(chw)
+                    .missedAppointmentDate(impliedMissedDate)
+                    .daysSinceMissed((int) daysSince)
+                    .reason("MISSED_REFILL")
+                    .status("LATE")
+                    .proxyAuthorized(false)
+                    .build();
+
+            tracingTaskRepository.save(task);
+            notificationService.notifyLtfuLate(patient, chw, task);
+            created++;
+
+            log.info("Tracing task auto-created (visit gap): patient={} implied_date={} days={}",
+                    patientId, impliedMissedDate, daysSince);
+        }
+
+        return created;
+    }
+
+    // ── Phase 2 — Progress existing tasks through lifecycle ───────────────────
+
+    private int[] progressExistingTasks() {
+        LocalDate today = LocalDate.now();
         List<TracingTask> activeTasks = tracingTaskRepository.findAllActive();
-        int updated = 0;
-        int escalated = 0;
-        int confirmed = 0;
+        int updated = 0, escalated = 0, confirmed = 0;
 
         for (TracingTask task : activeTasks) {
-            // 1. Recalculate days_since_missed
-            int days = (int) ChronoUnit.DAYS.between(task.getMissedAppointmentDate(), LocalDate.now());
+            int days = (int) ChronoUnit.DAYS.between(task.getMissedAppointmentDate(), today);
             task.setDaysSinceMissed(Math.max(0, days));
-
-            // 2. Stage transitions
             boolean changed = false;
 
-            if (days >= 30 && !"LTFU_CONFIRMED".equals(task.getStatus())
-                           && !"ESCALATED".equals(task.getStatus())
-                           && !"RESOLVED".equals(task.getStatus())) {
-                // Officially LTFU per Rwanda 30-day threshold
+            if (days >= 30
+                    && !"LTFU_CONFIRMED".equals(task.getStatus())
+                    && !"ESCALATED".equals(task.getStatus())
+                    && !"RESOLVED".equals(task.getStatus())) {
+
                 task.setStatus("LTFU_CONFIRMED");
                 task.setLtfuConfirmedAt(LocalDateTime.now());
-                alertService.createLtfuConfirmedAlert(task.getPatient(), task.getChw(), task);
+                notificationService.notifyLtfuConfirmed(task.getPatient(), task.getChw(), task);
                 confirmed++;
                 changed = true;
                 log.info("Patient LTFU confirmed: patient={} days={}", task.getPatient().getId(), days);
 
             } else if (days >= 14 && "LATE".equals(task.getStatus())) {
-                // Escalate to CHW active tracing assignment
+
                 task.setStatus("CHW_ASSIGNED");
-                alertService.createLtfuTracingAlert(
-                        task.getPatient(), task.getChw(), task, AlertSeverity.CRITICAL);
+                notificationService.notifyLtfuChwAssigned(task.getPatient(), task.getChw(), task);
                 escalated++;
                 changed = true;
-                log.info("Tracing task escalated to CHW_ASSIGNED: patient={} days={}",
-                        task.getPatient().getId(), days);
+                log.info("Tracing task → CHW_ASSIGNED: patient={} days={}", task.getPatient().getId(), days);
             }
 
-            if (changed || task.getDaysSinceMissed() != days) {
+            if (changed) {
+                tracingTaskRepository.save(task);
+                updated++;
+            } else if (task.getDaysSinceMissed() != days) {
                 tracingTaskRepository.save(task);
                 updated++;
             }
         }
 
-        log.info("LtfuScheduler complete: tasks_processed={} days_updated={} escalated_to_chw={} ltfu_confirmed={}",
-                activeTasks.size(), updated, escalated, confirmed);
+        return new int[]{updated, escalated, confirmed};
     }
 }

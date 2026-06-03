@@ -6,8 +6,10 @@ import com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog;
 import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
+import com.nelly.hivtbmonitoringsystem.entity.HomeVisit;
 import com.nelly.hivtbmonitoringsystem.repository.ConfirmationLogRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
+import com.nelly.hivtbmonitoringsystem.repository.HomeVisitRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
@@ -30,9 +32,20 @@ public class PatientSelfService {
     private final SystemUserRepository userRepository;
     private final DoseScheduleRepository doseScheduleRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
+    private final HomeVisitRepository homeVisitRepository;
 
     public PatientResponse getProfile() {
         Patient p = resolvePatient();
+
+        // Next CHW visit date from the most recent home visit record
+        LocalDate nextVisit = homeVisitRepository
+                .findByPatientIdOrderByVisitDateDesc(p.getId())
+                .stream()
+                .filter(v -> v.getNextVisitDate() != null)
+                .findFirst()
+                .map(v -> v.getNextVisitDate().toLocalDate())
+                .orElse(null);
+
         return PatientResponse.builder()
                 .id(p.getId())
                 .patientCode(p.getPatientCode())
@@ -56,6 +69,7 @@ public class PatientSelfService {
                 .syncStatus(p.getSyncStatus() != null ? p.getSyncStatus().name() : null)
                 .isActive(p.getIsActive())
                 .createdAt(p.getCreatedAt())
+                .nextCHWVisitDate(nextVisit)
                 .build();
     }
 
@@ -94,6 +108,9 @@ public class PatientSelfService {
                     .isConfirmed(isConfirmed)
                     .isMissed(isMissed)
                     .confirmedAt(confirmedAt)
+                    .prescribedBy(s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null)
+                    .facilityName(patient.getFacility() != null ? patient.getFacility().getName() : null)
+                    .prescriptionSource(s.getPrescriptionSource())
                     .build();
         }).toList();
     }

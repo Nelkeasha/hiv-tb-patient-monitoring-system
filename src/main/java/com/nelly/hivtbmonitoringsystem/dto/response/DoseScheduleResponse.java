@@ -18,5 +18,7 @@ public class DoseScheduleResponse {
     private ConfirmationChannel notificationMethod;
     private Integer windowDurationMinutes;
     private Boolean isActive;
+    private String createdByName;
+    private String prescriptionSource;
     private LocalDateTime createdAt;
 }

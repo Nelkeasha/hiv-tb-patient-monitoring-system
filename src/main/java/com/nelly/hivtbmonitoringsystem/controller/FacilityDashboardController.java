@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/clinical/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('FACILITY_PROVIDER')")
+@PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
 public class FacilityDashboardController {
 
     private final FacilityDashboardService dashboardService;

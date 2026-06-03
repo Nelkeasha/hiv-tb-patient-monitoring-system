@@ -24,14 +24,14 @@ public class AlertController {
 
     /** Unresolved alerts assigned to the logged-in CHW, newest first. */
     @GetMapping("/chw")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<AlertResponse>> getChwAlerts() {
         return ResponseEntity.ok(alertService.getChwAlerts());
     }
 
     /** Unresolved alerts for a specific patient (CHW must own that patient). */
     @GetMapping("/chw/patient/{patientId}")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<AlertResponse>> getChwPatientAlerts(
             @PathVariable UUID patientId) {
         return ResponseEntity.ok(alertService.getChwPatientAlerts(patientId));
@@ -41,14 +41,14 @@ public class AlertController {
 
     /** Unresolved CRITICAL and WARNING alerts across the system. */
     @GetMapping("/clinical")
-    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<AlertResponse>> getClinicalAlerts() {
         return ResponseEntity.ok(alertService.getClinicalAlerts());
     }
 
     /** All unresolved alerts for a specific patient — clinical staff view. */
     @GetMapping("/clinical/patient/{patientId}")
-    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<AlertResponse>> getClinicalPatientAlerts(
             @PathVariable UUID patientId) {
         return ResponseEntity.ok(alertService.getClinicalPatientAlerts(patientId));
@@ -58,14 +58,14 @@ public class AlertController {
 
     /** Mark an alert as read. CHW can only mark their own alerts. */
     @PutMapping("/{alertId}/read")
-    @PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER', 'SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<AlertResponse> markRead(@PathVariable UUID alertId) {
         return ResponseEntity.ok(alertService.markRead(alertId));
     }
 
     /** Mark an alert as resolved. CHW can only resolve their own alerts. */
     @PutMapping("/{alertId}/resolve")
-    @PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER', 'SYSTEM_ADMIN')")
+    @PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<AlertResponse> markResolved(@PathVariable UUID alertId) {
         return ResponseEntity.ok(alertService.markResolved(alertId));
     }

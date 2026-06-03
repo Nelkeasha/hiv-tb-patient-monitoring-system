@@ -18,13 +18,13 @@ public class ChwDashboardController {
     private final ChwDashboardService dashboardService;
 
     @GetMapping("/dashboard")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ChwDashboardResponse> getDashboard() {
         return ResponseEntity.ok(dashboardService.getDashboard());
     }
 
     @GetMapping("/priority-list")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<ChwPriorityListResponse> getPriorityList() {
         return ResponseEntity.ok(dashboardService.getPriorityList());
     }

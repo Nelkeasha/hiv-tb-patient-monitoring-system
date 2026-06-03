@@ -18,4 +18,6 @@ public class AddDoseScheduleRequest {
     private ConfirmationChannel notificationMethod = ConfirmationChannel.APP;
 
     private Integer windowDurationMinutes = 45;
+
+    private String prescriptionSource;
 }

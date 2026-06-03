@@ -24,7 +24,7 @@ public class FhirSyncController {
 
     /** How many records of each type are waiting to be synced to FHIR. */
     @GetMapping("/chw/sync/pending")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<SyncPendingResponse> getPendingCounts() {
         return ResponseEntity.ok(fhirSyncService.getPendingCounts());
     }
@@ -35,7 +35,7 @@ public class FhirSyncController {
      * IN_PROGRESS until the FHIR service calls the complete endpoint.
      */
     @PostMapping("/chw/sync/trigger")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<SyncTriggerResponse> triggerSync() {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(fhirSyncService.triggerSync());
@@ -43,14 +43,14 @@ public class FhirSyncController {
 
     /** History of all sync sessions for this CHW, most recent first. */
     @GetMapping("/chw/sync/history")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<FhirSyncLogResponse>> getSyncHistory() {
         return ResponseEntity.ok(fhirSyncService.getSyncHistory());
     }
 
     /** Detail of a single sync session. */
     @GetMapping("/chw/sync/history/{logId}")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<FhirSyncLogResponse> getSyncLog(@PathVariable UUID logId) {
         return ResponseEntity.ok(fhirSyncService.getSyncLog(logId));
     }
@@ -74,7 +74,7 @@ public class FhirSyncController {
 
     /** Total pending records across all resource types at the provider's facility. */
     @GetMapping("/clinical/sync/status")
-    @PreAuthorize("hasRole('FACILITY_PROVIDER')")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<FacilitySyncStatusResponse> getFacilitySyncStatus() {
         return ResponseEntity.ok(fhirSyncService.getFacilitySyncStatus());
     }

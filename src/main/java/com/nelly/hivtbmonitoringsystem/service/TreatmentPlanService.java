@@ -11,6 +11,7 @@ import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.entity.TreatmentPlan;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
+import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
@@ -36,17 +37,14 @@ public class TreatmentPlanService {
     private final SystemUserRepository systemUserRepository;
     private final ChwRepository chwRepository;
 
+    // ── Clinical staff writes ─────────────────────────────────────────────────
+
     @Transactional
     public TreatmentPlanResponse createPlan(CreateTreatmentPlanRequest req) {
         SystemUser currentUser = resolveCurrentUser();
-        Chw chw = resolveChw(currentUser);
 
         Patient patient = patientRepository.findById(req.getPatientId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
-
-        if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
-        }
 
         TreatmentPlan plan = TreatmentPlan.builder()
                 .patient(patient)
@@ -63,34 +61,9 @@ public class TreatmentPlanService {
         return toResponse(treatmentPlanRepository.save(plan));
     }
 
-    public List<TreatmentPlanResponse> getPatientPlans(UUID patientId) {
-        Chw chw = resolveChw(resolveCurrentUser());
-
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
-
-        if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
-        }
-
-        return treatmentPlanRepository.findByPatientId(patientId)
-                .stream().map(this::toResponse).toList();
-    }
-
-    /** Used by patients to fetch their own treatment plans (no CHW auth check). */
-    public List<TreatmentPlanResponse> getOwnPatientPlans(UUID patientId) {
-        return treatmentPlanRepository.findByPatientId(patientId)
-                .stream().map(this::toResponse).toList();
-    }
-
-    public TreatmentPlanResponse getPlan(UUID planId) {
-        TreatmentPlan plan = findAndAuthorize(planId);
-        return toResponse(plan);
-    }
-
     @Transactional
     public TreatmentPlanResponse updatePlan(UUID planId, UpdateTreatmentPlanRequest req) {
-        TreatmentPlan plan = findAndAuthorize(planId);
+        TreatmentPlan plan = findPlan(planId);
 
         if (req.getMedicationName() != null) plan.setMedicationName(req.getMedicationName());
         if (req.getDosage() != null) plan.setDosage(req.getDosage());
@@ -109,7 +82,7 @@ public class TreatmentPlanService {
 
     @Transactional
     public DoseScheduleResponse addSchedule(UUID planId, AddDoseScheduleRequest req) {
-        TreatmentPlan plan = findAndAuthorize(planId);
+        TreatmentPlan plan = findPlan(planId);
         SystemUser currentUser = resolveCurrentUser();
 
         DoseSchedule schedule = DoseSchedule.builder()
@@ -121,38 +94,83 @@ public class TreatmentPlanService {
                 .windowDurationMinutes(req.getWindowDurationMinutes())
                 .isActive(true)
                 .createdBy(currentUser)
+                .prescriptionSource(req.getPrescriptionSource())
                 .build();
 
         return toScheduleResponse(doseScheduleRepository.save(schedule));
-    }
-
-    public List<DoseScheduleResponse> getSchedules(UUID planId) {
-        findAndAuthorize(planId);
-        return doseScheduleRepository.findByPlanId(planId)
-                .stream().map(this::toScheduleResponse).toList();
     }
 
     @Transactional
     public DoseScheduleResponse deactivateSchedule(UUID scheduleId) {
         DoseSchedule schedule = doseScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Schedule not found"));
-
-        findAndAuthorize(schedule.getPlan().getId());
         schedule.setIsActive(false);
         return toScheduleResponse(doseScheduleRepository.save(schedule));
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    // ── Shared reads (CHW sees own patients only; clinical sees all) ──────────
 
-    private TreatmentPlan findAndAuthorize(UUID planId) {
-        TreatmentPlan plan = treatmentPlanRepository.findById(planId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Treatment plan not found"));
+    public List<TreatmentPlanResponse> getPatientPlans(UUID patientId) {
+        SystemUser currentUser = resolveCurrentUser();
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
 
-        Chw chw = resolveChw(resolveCurrentUser());
-        if (!plan.getPatient().getChw().getId().equals(chw.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        if (currentUser.getRole() == UserRole.CHW) {
+            assertChwOwnsPatient(currentUser, patient);
         }
-        return plan;
+
+        return treatmentPlanRepository.findByPatientId(patientId)
+                .stream().map(this::toResponse).toList();
+    }
+
+    public TreatmentPlanResponse getPlan(UUID planId) {
+        TreatmentPlan plan = findPlan(planId);
+        SystemUser currentUser = resolveCurrentUser();
+
+        if (currentUser.getRole() == UserRole.CHW) {
+            assertChwOwnsPatient(currentUser, plan.getPatient());
+        }
+
+        return toResponse(plan);
+    }
+
+    public List<DoseScheduleResponse> getSchedules(UUID planId) {
+        TreatmentPlan plan = findPlan(planId);
+        SystemUser currentUser = resolveCurrentUser();
+
+        if (currentUser.getRole() == UserRole.CHW) {
+            assertChwOwnsPatient(currentUser, plan.getPatient());
+        }
+
+        return doseScheduleRepository.findByPlanId(planId)
+                .stream().map(this::toScheduleResponse).toList();
+    }
+
+    /** All active schedules for a patient — used by CHW during home visits. */
+    public List<DoseScheduleResponse> getActiveSchedulesForPatient(UUID patientId) {
+        SystemUser currentUser = resolveCurrentUser();
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        if (currentUser.getRole() == UserRole.CHW) {
+            assertChwOwnsPatient(currentUser, patient);
+        }
+
+        return doseScheduleRepository.findByPatientIdAndIsActiveTrue(patientId)
+                .stream().map(this::toScheduleResponse).toList();
+    }
+
+    /** Used by patients to fetch their own treatment plans (no ownership check). */
+    public List<TreatmentPlanResponse> getOwnPatientPlans(UUID patientId) {
+        return treatmentPlanRepository.findByPatientId(patientId)
+                .stream().map(this::toResponse).toList();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private TreatmentPlan findPlan(UUID planId) {
+        return treatmentPlanRepository.findById(planId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Treatment plan not found"));
     }
 
     private SystemUser resolveCurrentUser() {
@@ -161,9 +179,12 @@ public class TreatmentPlanService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
     }
 
-    private Chw resolveChw(SystemUser user) {
-        return chwRepository.findByUserId(user.getId())
+    private void assertChwOwnsPatient(SystemUser user, Patient patient) {
+        Chw chw = chwRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "CHW profile not found"));
+        if (!patient.getChw().getId().equals(chw.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
+        }
     }
 
     private TreatmentPlanResponse toResponse(TreatmentPlan plan) {
@@ -181,6 +202,7 @@ public class TreatmentPlanService {
                 .endDate(plan.getEndDate())
                 .isActive(plan.getIsActive())
                 .syncStatus(plan.getSyncStatus())
+                .createdByName(plan.getCreatedBy() != null ? plan.getCreatedBy().getFullName() : null)
                 .createdAt(plan.getCreatedAt())
                 .schedules(schedules)
                 .build();
@@ -196,6 +218,8 @@ public class TreatmentPlanService {
                 .notificationMethod(s.getNotificationMethod())
                 .windowDurationMinutes(s.getWindowDurationMinutes())
                 .isActive(s.getIsActive())
+                .createdByName(s.getCreatedBy() != null ? s.getCreatedBy().getFullName() : null)
+                .prescriptionSource(s.getPrescriptionSource())
                 .createdAt(s.getCreatedAt())
                 .build();
     }

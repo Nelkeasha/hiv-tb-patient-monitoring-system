@@ -22,7 +22,7 @@ public class AiRiskScoreController {
 
     /** CHW morning priority list — own patients sorted highest risk first. */
     @GetMapping("/chw/priority-list")
-    @PreAuthorize("hasRole('CHW')")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<AiRiskScoreResponse>> getChwPriorityList() {
         return ResponseEntity.ok(riskScoreService.getChwPriorityList());
     }
@@ -52,7 +52,7 @@ public class AiRiskScoreController {
 
     /** Patient's own latest risk score. */
     @GetMapping("/me/latest")
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAnyRole('PATIENT', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<AiRiskScoreResponse> getMyLatestScore() {
         return ResponseEntity.ok(riskScoreService.getMyLatestScore());
     }

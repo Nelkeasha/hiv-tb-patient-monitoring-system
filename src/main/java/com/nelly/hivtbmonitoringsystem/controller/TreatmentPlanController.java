@@ -16,33 +16,31 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Treatment plan and dose schedule management.
+ *
+ * Write access (create / update / deactivate) is restricted to CLINICAL_STAFF
+ * and FACILITY_PROVIDER — CHWs have read-only access.
+ */
 @RestController
-@RequestMapping("/api/chw/treatment-plans")
+@RequestMapping("/api/treatment-plans")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER')")
 public class TreatmentPlanController {
 
     private final TreatmentPlanService treatmentPlanService;
 
+    // ── Clinical staff — write ────────────────────────────────────────────────
+
     @PostMapping
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<TreatmentPlanResponse> createPlan(
             @Valid @RequestBody CreateTreatmentPlanRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(treatmentPlanService.createPlan(request));
     }
 
-    @GetMapping("/patient/{patientId}")
-    public ResponseEntity<List<TreatmentPlanResponse>> getPatientPlans(
-            @PathVariable UUID patientId) {
-        return ResponseEntity.ok(treatmentPlanService.getPatientPlans(patientId));
-    }
-
-    @GetMapping("/{planId}")
-    public ResponseEntity<TreatmentPlanResponse> getPlan(@PathVariable UUID planId) {
-        return ResponseEntity.ok(treatmentPlanService.getPlan(planId));
-    }
-
     @PutMapping("/{planId}")
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<TreatmentPlanResponse> updatePlan(
             @PathVariable UUID planId,
             @RequestBody UpdateTreatmentPlanRequest request) {
@@ -50,6 +48,7 @@ public class TreatmentPlanController {
     }
 
     @PostMapping("/{planId}/schedules")
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<DoseScheduleResponse> addSchedule(
             @PathVariable UUID planId,
             @Valid @RequestBody AddDoseScheduleRequest request) {
@@ -57,13 +56,38 @@ public class TreatmentPlanController {
                 .body(treatmentPlanService.addSchedule(planId, request));
     }
 
+    @PutMapping("/schedules/{scheduleId}/deactivate")
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<DoseScheduleResponse> deactivateSchedule(@PathVariable UUID scheduleId) {
+        return ResponseEntity.ok(treatmentPlanService.deactivateSchedule(scheduleId));
+    }
+
+    // ── Shared read — clinical staff + CHW (CHW sees own patients only) ───────
+
+    @GetMapping("/patient/{patientId}")
+    @PreAuthorize("hasAnyRole('CHW', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<List<TreatmentPlanResponse>> getPatientPlans(
+            @PathVariable UUID patientId) {
+        return ResponseEntity.ok(treatmentPlanService.getPatientPlans(patientId));
+    }
+
+    @GetMapping("/{planId}")
+    @PreAuthorize("hasAnyRole('CHW', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<TreatmentPlanResponse> getPlan(@PathVariable UUID planId) {
+        return ResponseEntity.ok(treatmentPlanService.getPlan(planId));
+    }
+
     @GetMapping("/{planId}/schedules")
+    @PreAuthorize("hasAnyRole('CHW', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<DoseScheduleResponse>> getSchedules(@PathVariable UUID planId) {
         return ResponseEntity.ok(treatmentPlanService.getSchedules(planId));
     }
 
-    @PutMapping("/schedules/{scheduleId}/deactivate")
-    public ResponseEntity<DoseScheduleResponse> deactivateSchedule(@PathVariable UUID scheduleId) {
-        return ResponseEntity.ok(treatmentPlanService.deactivateSchedule(scheduleId));
+    /** All active schedules for a patient — used by CHW during home visits. */
+    @GetMapping("/patient/{patientId}/schedules/active")
+    @PreAuthorize("hasAnyRole('CHW', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<List<DoseScheduleResponse>> getActiveSchedulesForPatient(
+            @PathVariable UUID patientId) {
+        return ResponseEntity.ok(treatmentPlanService.getActiveSchedulesForPatient(patientId));
     }
 }

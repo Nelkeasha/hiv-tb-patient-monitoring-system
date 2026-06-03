@@ -15,7 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/patient/confirmations")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('PATIENT')")
+@PreAuthorize("hasAnyRole('PATIENT', 'ADMIN', 'SYSTEM_ADMIN')")
 public class PatientConfirmationController {
 
     private final PatientConfirmationService confirmationService;

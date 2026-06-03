@@ -17,4 +17,7 @@ public class TodayDoseResponse {
     private Boolean isConfirmed;
     private Boolean isMissed;
     private LocalDateTime confirmedAt;
+    private String prescribedBy;
+    private String facilityName;
+    private String prescriptionSource;
 }

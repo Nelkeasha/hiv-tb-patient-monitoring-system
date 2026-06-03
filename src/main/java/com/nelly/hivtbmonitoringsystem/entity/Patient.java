@@ -65,6 +65,12 @@ public class Patient {
     @Column(length = 100)
     private String district;
 
+    @Column(length = 100)
+    private String province;
+
+    @Column(length = 100)
+    private String cell;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private SystemUser user;
@@ -76,6 +82,39 @@ public class Patient {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "facility_id", nullable = false)
     private Facility facility;
+
+    @Column(name = "registration_route", length = 20)
+    private String registrationRoute = "FACILITY";
+
+    @Column(name = "registration_status", length = 20)
+    private String registrationStatus = "ACTIVE";
+
+    @Column(name = "referral_id", unique = true, length = 30)
+    private String referralId;
+
+    @Column(name = "screened_by_chw_id")
+    private UUID screenedByChwId;
+
+    @Column(name = "screened_at")
+    private LocalDateTime screenedAt;
+
+    @Column(name = "confirmed_by")
+    private UUID confirmedBy;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "suspected_condition", length = 50)
+    private String suspectedCondition;
+
+    @Column(name = "screening_symptoms", columnDefinition = "TEXT")
+    private String screeningSymptoms;
+
+    @Column(name = "screening_notes", columnDefinition = "TEXT")
+    private String screeningNotes;
+
+    @Column(name = "lab_result_notes", columnDefinition = "TEXT")
+    private String labResultNotes;
 
     @Column(name = "fhir_patient_id", unique = true, length = 100)
     private String fhirPatientId;

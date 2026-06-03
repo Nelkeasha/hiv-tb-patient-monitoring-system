@@ -1,8 +1,10 @@
 package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.EnrollPatientRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ScreenPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.UpdatePatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.ProvisionalPatientResponse;
 import com.nelly.hivtbmonitoringsystem.service.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,14 +19,31 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/chw/patients")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('CHW')")
+@PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
 public class PatientController {
 
     private final PatientService patientService;
 
+    /**
+     * Route B — CHW creates a provisional screening record in the field.
+     * Returns a referral ID the patient presents at the health center.
+     */
+    @PostMapping("/screen")
+    public ResponseEntity<ProvisionalPatientResponse> screen(
+            @Valid @RequestBody ScreenPatientRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(patientService.screenPatient(request));
+    }
+
+    /**
+     * Legacy enroll endpoint — kept for Flutter backward compatibility.
+     * Now creates a PROVISIONAL record identical to /screen.
+     */
     @PostMapping
-    public ResponseEntity<PatientResponse> enroll(@Valid @RequestBody EnrollPatientRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(patientService.enrollPatient(request));
+    public ResponseEntity<PatientResponse> enroll(
+            @Valid @RequestBody EnrollPatientRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(patientService.enrollPatient(request));
     }
 
     @GetMapping

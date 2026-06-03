@@ -45,6 +45,10 @@ public class SystemUser {
     @Column(name = "preferred_language", length = 10)
     private String preferredLanguage = "rw";
 
+    /** Firebase Cloud Messaging device token — updated on each login. */
+    @Column(name = "fcm_token", length = 255)
+    private String fcmToken;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

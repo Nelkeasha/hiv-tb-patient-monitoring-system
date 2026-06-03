@@ -49,6 +49,9 @@ public class DoseSchedule {
     @JoinColumn(name = "created_by")
     private SystemUser createdBy;
 
+    @Column(name = "prescription_source", columnDefinition = "TEXT")
+    private String prescriptionSource;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

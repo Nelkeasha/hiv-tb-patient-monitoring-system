@@ -22,6 +22,22 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Spring Security configuration.
+ *
+ * Filter-chain responsibility:
+ *   - Public paths (/api/auth/**, /swagger-ui/**, /health) require no token.
+ *   - Every other path requires a valid JWT (any authenticated role).
+ *
+ * Role-level access control is enforced by @PreAuthorize on each controller
+ * method. ADMIN and SYSTEM_ADMIN are included in every @PreAuthorize
+ * annotation across all controllers, giving them unrestricted access to the
+ * entire API without requiring special filter-chain rules.
+ *
+ * This separation keeps the filter chain simple and lets @EnableMethodSecurity
+ * handle all role-based decisions, which is the standard Spring Security
+ * pattern for stateless JWT APIs.
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -38,8 +54,20 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // ── Public — no JWT required ──────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+                        .requestMatchers("/health").permitAll()
+
+                        // ── Everything else — valid JWT required ──────────
+                        // Role-level enforcement is handled by @PreAuthorize
+                        // on each controller method. ADMIN / SYSTEM_ADMIN are
+                        // included in every @PreAuthorize, giving them full
+                        // unrestricted access across all endpoints.
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

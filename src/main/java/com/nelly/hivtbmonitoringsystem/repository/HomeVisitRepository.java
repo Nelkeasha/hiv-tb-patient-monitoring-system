@@ -24,4 +24,13 @@ public interface HomeVisitRepository extends JpaRepository<HomeVisit, UUID> {
 
     @Query("SELECT COUNT(hv) FROM HomeVisit hv WHERE hv.chw.facility.id = :facilityId AND hv.syncStatus = :status")
     long countByFacilityIdAndSyncStatus(@Param("facilityId") UUID facilityId, @Param("status") SyncStatus status);
+
+    /**
+     * Find the most recent visit date per patient — used by LtfuScheduler to
+     * detect patients with no care contact in 28+ days (monthly ART/TB refill cycle).
+     */
+    @Query("SELECT hv.patient.id FROM HomeVisit hv " +
+           "GROUP BY hv.patient.id " +
+           "HAVING MAX(hv.visitDate) < :cutoff")
+    List<UUID> findPatientIdsWithNoVisitSince(@Param("cutoff") LocalDateTime cutoff);
 }

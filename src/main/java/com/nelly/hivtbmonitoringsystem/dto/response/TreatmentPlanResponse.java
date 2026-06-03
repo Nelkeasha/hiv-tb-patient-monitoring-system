@@ -21,6 +21,7 @@ public class TreatmentPlanResponse {
     private LocalDate endDate;
     private Boolean isActive;
     private SyncStatus syncStatus;
+    private String createdByName;
     private LocalDateTime createdAt;
     private List<DoseScheduleResponse> schedules;
 }

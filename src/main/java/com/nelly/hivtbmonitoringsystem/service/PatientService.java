@@ -1,27 +1,34 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
+import com.nelly.hivtbmonitoringsystem.dto.request.ConfirmPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.EnrollPatientRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.RegisterPatientRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ScreenPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.UpdatePatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.ProvisionalPatientResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
+import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
+import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
-import com.nelly.hivtbmonitoringsystem.enums.UserRole;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import java.security.SecureRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -32,53 +39,103 @@ public class PatientService {
     private final ChwRepository chwRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
+
+    // ── Route B — CHW provisional screening ──────────────────────────────────
 
     @Transactional
-    public PatientResponse enrollPatient(EnrollPatientRequest req) {
+    public ProvisionalPatientResponse screenPatient(ScreenPatientRequest req) {
         Chw chw = resolveCurrentChw();
 
-        // Auto-generate patient code if not provided
-        String patientCode = (req.getPatientCode() != null && !req.getPatientCode().isBlank())
-                ? req.getPatientCode()
-                : "PT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        String patientCode = generatePatientCode();
+        String referralId  = generateReferralId(req.getSector() != null ? req.getSector() : req.getVillage());
 
-        if (patientRepository.existsByPatientCode(patientCode)) {
-            patientCode = "PT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        }
-        if (req.getNationalId() != null && patientRepository.existsByNationalId(req.getNationalId())) {
-            throw new RuntimeException("National ID already registered: " + req.getNationalId());
-        }
-
-        // Accept "gender" as alias for "sex"
         String sex = (req.getSex() != null && !req.getSex().isBlank()) ? req.getSex() : req.getGender();
+        DiagnosisType diagnosisType = parseSuspectedCondition(req.getSuspectedCondition());
 
-        // Derive diagnosisType from hivStatus + tbStatus if not provided directly
-        DiagnosisType diagnosisType = req.getDiagnosisType();
-        if (diagnosisType == null) {
-            boolean hivPositive = "POSITIVE".equalsIgnoreCase(req.getHivStatus());
-            boolean tbActive = req.getTbStatus() != null && !"NONE".equalsIgnoreCase(req.getTbStatus());
-            if (hivPositive && tbActive) diagnosisType = DiagnosisType.HIV_TB_COINFECTION;
-            else if (hivPositive) diagnosisType = DiagnosisType.HIV;
-            else diagnosisType = DiagnosisType.TB;
-        }
+        String symptoms = req.getSymptoms() != null
+                ? String.join(",", req.getSymptoms())
+                : null;
 
         Patient patient = Patient.builder()
                 .patientCode(patientCode)
                 .fullName(req.getFullName())
                 .dateOfBirth(req.getDateOfBirth())
-                .sex(sex)
-                .nationalId(req.getNationalId())
+                .sex(sex != null ? sex : "UNKNOWN")
                 .phoneNumber(req.getPhoneNumber())
                 .hasSmartphone(req.getHasSmartphone() != null ? req.getHasSmartphone() : false)
                 .diagnosisType(diagnosisType)
-                .artStartDate(req.getArtStartDate())
-                .tbTreatmentStartDate(req.getTbTreatmentStartDate())
-                .householdLocation(req.getHouseholdLocation())
-                .village(req.getVillage())
-                .sector(req.getSector())
+                .province(req.getProvince())
                 .district(req.getDistrict())
+                .sector(req.getSector())
+                .cell(req.getCell())
+                .village(req.getVillage())
+                .householdLocation(req.getHouseholdLocation())
                 .chw(chw)
                 .facility(chw.getFacility())
+                .registrationRoute("CHW_SCREENING")
+                .registrationStatus("PROVISIONAL")
+                .referralId(referralId)
+                .screenedByChwId(chw.getId())
+                .screenedAt(LocalDateTime.now())
+                .suspectedCondition(req.getSuspectedCondition())
+                .screeningSymptoms(symptoms)
+                .screeningNotes(req.getScreeningNotes())
+                .syncStatus(SyncStatus.PENDING)
+                .isActive(true)
+                .build();
+
+        patientRepository.save(patient);
+        auditLogService.log("SCREEN_PATIENT", "patients", patient.getId());
+
+        String facilityName = chw.getFacility().getName();
+        return ProvisionalPatientResponse.builder()
+                .patientId(patient.getId())
+                .patientCode(patientCode)
+                .fullName(req.getFullName())
+                .referralId(referralId)
+                .status("PROVISIONAL")
+                .message("Provisional screening record created. Referral ID: " + referralId +
+                         ". Please give this ID to the patient to present at the health center.")
+                .referralInstructions("Patient must present to " + facilityName +
+                         " within 7 days for laboratory confirmation.")
+                .build();
+    }
+
+    // ── Route A — Clinical staff facility registration ────────────────────────
+
+    @Transactional
+    public PatientResponse registerPatient(RegisterPatientRequest req) {
+        SystemUser currentUser = resolveCurrentUser();
+
+        Chw chw = chwRepository.findById(req.getAssignedChwId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
+
+        String patientCode = generatePatientCode();
+
+        Patient patient = Patient.builder()
+                .patientCode(patientCode)
+                .fullName(req.getFullName())
+                .dateOfBirth(req.getDateOfBirth())
+                .sex(req.getSex())
+                .nationalId(req.getNationalId())
+                .phoneNumber(req.getPhoneNumber())
+                .hasSmartphone(req.getHasSmartphone() != null ? req.getHasSmartphone() : false)
+                .diagnosisType(req.getDiagnosisType())
+                .artStartDate(req.getArtStartDate())
+                .tbTreatmentStartDate(req.getTbTreatmentStartDate())
+                .province(req.getProvince())
+                .district(req.getDistrict())
+                .sector(req.getSector())
+                .cell(req.getCell())
+                .village(req.getVillage())
+                .householdLocation(req.getHouseholdLocation())
+                .chw(chw)
+                .facility(chw.getFacility())
+                .registrationRoute("FACILITY")
+                .registrationStatus("ACTIVE")
+                .confirmedBy(currentUser.getId())
+                .confirmedAt(LocalDateTime.now())
                 .syncStatus(SyncStatus.PENDING)
                 .isActive(true)
                 .build();
@@ -109,9 +166,105 @@ public class PatientService {
         return toResponse(patient, loginEmail, temporaryPassword);
     }
 
+    // ── Route B confirmation — clinical staff upgrades provisional to active ──
+
+    @Transactional
+    public PatientResponse confirmPatient(UUID patientId, ConfirmPatientRequest req) {
+        SystemUser currentUser = resolveCurrentUser();
+
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        if (!"PROVISIONAL".equals(patient.getRegistrationStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Patient is already ACTIVE — cannot confirm again");
+        }
+
+        patient.setRegistrationStatus("ACTIVE");
+        patient.setDiagnosisType(req.getDiagnosisType());
+        if (req.getArtStartDate() != null)          patient.setArtStartDate(req.getArtStartDate());
+        if (req.getTbTreatmentStartDate() != null)  patient.setTbTreatmentStartDate(req.getTbTreatmentStartDate());
+        if (req.getNationalPatientId() != null)     patient.setNationalId(req.getNationalPatientId());
+        if (req.getLabResultNotes() != null)        patient.setLabResultNotes(req.getLabResultNotes());
+        patient.setConfirmedBy(currentUser.getId());
+        patient.setConfirmedAt(LocalDateTime.now());
+        patient.setSyncStatus(SyncStatus.PENDING);
+
+        patientRepository.save(patient);
+        auditLogService.log("CONFIRM_PATIENT", "patients", patient.getId());
+
+        // Notify the CHW who screened this patient
+        notificationService.notifyPatientConfirmed(patient, patient.getChw(), currentUser.getFullName());
+
+        return toResponse(patient, null, null);
+    }
+
+    // ── CHW: backward-compat enrollment (also creates PROVISIONAL) ────────────
+
+    @Transactional
+    public PatientResponse enrollPatient(EnrollPatientRequest req) {
+        Chw chw = resolveCurrentChw();
+
+        String patientCode = (req.getPatientCode() != null && !req.getPatientCode().isBlank())
+                ? req.getPatientCode()
+                : generatePatientCode();
+
+        if (patientRepository.existsByPatientCode(patientCode)) {
+            patientCode = generatePatientCode();
+        }
+        if (req.getNationalId() != null && patientRepository.existsByNationalId(req.getNationalId())) {
+            throw new RuntimeException("National ID already registered: " + req.getNationalId());
+        }
+
+        String sex = (req.getSex() != null && !req.getSex().isBlank()) ? req.getSex() : req.getGender();
+
+        DiagnosisType diagnosisType = req.getDiagnosisType();
+        if (diagnosisType == null) {
+            boolean hivPositive = "POSITIVE".equalsIgnoreCase(req.getHivStatus());
+            boolean tbActive = req.getTbStatus() != null && !"NONE".equalsIgnoreCase(req.getTbStatus());
+            if (hivPositive && tbActive) diagnosisType = DiagnosisType.HIV_TB_COINFECTION;
+            else if (hivPositive)        diagnosisType = DiagnosisType.HIV;
+            else                         diagnosisType = DiagnosisType.TB;
+        }
+
+        String referralId = generateReferralId(req.getSector() != null ? req.getSector() : req.getVillage());
+
+        Patient patient = Patient.builder()
+                .patientCode(patientCode)
+                .fullName(req.getFullName())
+                .dateOfBirth(req.getDateOfBirth())
+                .sex(sex)
+                .nationalId(req.getNationalId())
+                .phoneNumber(req.getPhoneNumber())
+                .hasSmartphone(req.getHasSmartphone() != null ? req.getHasSmartphone() : false)
+                .diagnosisType(diagnosisType)
+                .artStartDate(req.getArtStartDate())
+                .tbTreatmentStartDate(req.getTbTreatmentStartDate())
+                .householdLocation(req.getHouseholdLocation())
+                .village(req.getVillage())
+                .sector(req.getSector())
+                .district(req.getDistrict())
+                .chw(chw)
+                .facility(chw.getFacility())
+                .registrationRoute("CHW_SCREENING")
+                .registrationStatus("PROVISIONAL")
+                .referralId(referralId)
+                .screenedByChwId(chw.getId())
+                .screenedAt(LocalDateTime.now())
+                .syncStatus(SyncStatus.PENDING)
+                .isActive(true)
+                .build();
+
+        patientRepository.save(patient);
+        auditLogService.log("SCREEN_PATIENT", "patients", patient.getId());
+        return toResponse(patient, null, null);
+    }
+
+    // ── Reads ─────────────────────────────────────────────────────────────────
+
     public List<PatientResponse> getMyPatients() {
         Chw chw = resolveCurrentChw();
-        return patientRepository.findByChwIdAndIsActiveTrue(chw.getId())
+        return patientRepository.findByChwId(chw.getId())
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 
@@ -130,6 +283,11 @@ public class PatientService {
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 
+    public List<PatientResponse> getProvisionalPatients() {
+        return patientRepository.findByRegistrationStatus("PROVISIONAL")
+                .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
+    }
+
     @Transactional
     public PatientResponse updatePatient(UUID patientId, UpdatePatientRequest req) {
         Chw chw = resolveCurrentChw();
@@ -139,25 +297,19 @@ public class PatientService {
             throw new RuntimeException("Access denied: patient not assigned to you");
         }
 
-        if (req.getFullName() != null) patient.setFullName(req.getFullName());
-        if (req.getPhoneNumber() != null) patient.setPhoneNumber(req.getPhoneNumber());
-        if (req.getHasSmartphone() != null) patient.setHasSmartphone(req.getHasSmartphone());
+        if (req.getFullName() != null)          patient.setFullName(req.getFullName());
+        if (req.getPhoneNumber() != null)       patient.setPhoneNumber(req.getPhoneNumber());
+        if (req.getHasSmartphone() != null)     patient.setHasSmartphone(req.getHasSmartphone());
         if (req.getHouseholdLocation() != null) patient.setHouseholdLocation(req.getHouseholdLocation());
-        if (req.getVillage() != null) patient.setVillage(req.getVillage());
-        if (req.getSector() != null) patient.setSector(req.getSector());
-        if (req.getDistrict() != null) patient.setDistrict(req.getDistrict());
+        if (req.getVillage() != null)           patient.setVillage(req.getVillage());
+        if (req.getSector() != null)            patient.setSector(req.getSector());
+        if (req.getDistrict() != null)          patient.setDistrict(req.getDistrict());
 
         patientRepository.save(patient);
         return toResponse(patient, null, null);
     }
 
-    private Chw resolveCurrentChw() {
-        String email = SecurityUtil.getCurrentUserEmail();
-        SystemUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
-        return chwRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("CHW profile not found for user: " + email));
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private PatientResponse toResponse(Patient p, String loginEmail, String temporaryPassword) {
         return PatientResponse.builder()
@@ -169,13 +321,15 @@ public class PatientService {
                 .nationalId(p.getNationalId())
                 .phoneNumber(p.getPhoneNumber())
                 .hasSmartphone(p.getHasSmartphone())
-                .diagnosisType(p.getDiagnosisType().name())
+                .diagnosisType(p.getDiagnosisType() != null ? p.getDiagnosisType().name() : null)
                 .artStartDate(p.getArtStartDate())
                 .tbTreatmentStartDate(p.getTbTreatmentStartDate())
                 .householdLocation(p.getHouseholdLocation())
                 .village(p.getVillage())
                 .sector(p.getSector())
                 .district(p.getDistrict())
+                .province(p.getProvince())
+                .cell(p.getCell())
                 .chwId(p.getChw().getId())
                 .chwName(p.getChw().getUser().getFullName())
                 .facilityId(p.getFacility().getId())
@@ -185,7 +339,51 @@ public class PatientService {
                 .createdAt(p.getCreatedAt())
                 .loginEmail(loginEmail)
                 .temporaryPassword(temporaryPassword)
+                .registrationRoute(p.getRegistrationRoute())
+                .registrationStatus(p.getRegistrationStatus())
+                .referralId(p.getReferralId())
+                .suspectedCondition(p.getSuspectedCondition())
+                .screeningNotes(p.getScreeningNotes())
+                .labResultNotes(p.getLabResultNotes())
+                .confirmedAt(p.getConfirmedAt())
                 .build();
+    }
+
+    private Chw resolveCurrentChw() {
+        String email = SecurityUtil.getCurrentUserEmail();
+        SystemUser user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found: " + email));
+        return chwRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("CHW profile not found for user: " + email));
+    }
+
+    private SystemUser resolveCurrentUser() {
+        String email = SecurityUtil.getCurrentUserEmail();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+    }
+
+    private String generatePatientCode() {
+        return "PT-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
+    private String generateReferralId(String location) {
+        int year = java.time.LocalDate.now().getYear();
+        String loc = (location != null && location.length() >= 3)
+                ? location.substring(0, 3).toUpperCase().replaceAll("[^A-Z]", "X")
+                : "GEN";
+        String seq = String.format("%04d", new SecureRandom().nextInt(9000) + 1000);
+        return "REF-" + year + "-" + loc + "-" + seq;
+    }
+
+    private DiagnosisType parseSuspectedCondition(String suspectedCondition) {
+        if (suspectedCondition == null) return DiagnosisType.TB;
+        return switch (suspectedCondition.toUpperCase().trim()) {
+            case "HIV"                -> DiagnosisType.HIV;
+            case "HIV_TB_COINFECTION",
+                 "HIV_TB"             -> DiagnosisType.HIV_TB_COINFECTION;
+            default                   -> DiagnosisType.TB;
+        };
     }
 
     private String generateTempPassword() {

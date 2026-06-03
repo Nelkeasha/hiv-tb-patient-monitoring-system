@@ -14,7 +14,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/supervisor/dashboard")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SUPERVISOR')")
+@PreAuthorize("hasAnyRole('SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
 public class SupervisorDashboardController {
 
     private final SupervisorDashboardService dashboardService;

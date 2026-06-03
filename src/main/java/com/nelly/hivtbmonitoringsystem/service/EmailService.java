@@ -173,6 +173,30 @@ public class EmailService {
             "— Dream Medical Center");
     }
 
+    // ── Patient confirmed (Route B) ───────────────────────────────────────────
+
+    @Async
+    public void sendPatientConfirmedAlert(String toEmail, String chwName,
+                                          String patientName, String referralId,
+                                          String diagnosisName, String treatmentStartDate,
+                                          String confirmedByName, String facilityName) {
+        if (!enabled) return;
+        send(toEmail,
+            "Confirmed Patient Assigned — " + patientName,
+            "Dear " + chwName + ",\n\n" +
+            "A patient you referred has been confirmed and assigned to your care list.\n\n" +
+            "Patient:          " + patientName + "\n" +
+            "Referral ID:      " + referralId + "\n" +
+            "Diagnosis:        " + diagnosisName + "\n" +
+            "Treatment Start:  " + treatmentStartDate + "\n" +
+            "Confirmed by:     " + confirmedByName + ", " + facilityName + "\n\n" +
+            "ACTION REQUIRED:\n" +
+            "Please conduct your first home visit within 24 hours to initiate " +
+            "Directly Observed Therapy (DOTS).\n\n" +
+            "Login to your app to view the patient's care plan.\n\n" +
+            "— Dream Medical Center HIV/TB Monitoring System");
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String body) {

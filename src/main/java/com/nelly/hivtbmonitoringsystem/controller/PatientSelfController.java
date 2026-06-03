@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/patient")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('PATIENT')")
+@PreAuthorize("hasAnyRole('PATIENT', 'ADMIN', 'SYSTEM_ADMIN')")
 public class PatientSelfController {
 
     private final PatientSelfService patientSelfService;
@@ -41,7 +41,7 @@ public class PatientSelfController {
     }
 
     @GetMapping("/treatment-plans")
-    @PreAuthorize("hasRole('PATIENT')")
+    @PreAuthorize("hasAnyRole('PATIENT', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<TreatmentPlanResponse>> getMyTreatmentPlans() {
         String email = SecurityUtil.getCurrentUserEmail();
         SystemUser user = userRepository.findByEmail(email)

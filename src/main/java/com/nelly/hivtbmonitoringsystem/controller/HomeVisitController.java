@@ -16,7 +16,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/chw/visits")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('CHW')")
+@PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
 public class HomeVisitController {
 
     private final HomeVisitService homeVisitService;
