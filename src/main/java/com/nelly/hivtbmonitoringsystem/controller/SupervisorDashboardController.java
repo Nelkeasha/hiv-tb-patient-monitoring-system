@@ -55,4 +55,10 @@ public class SupervisorDashboardController {
     public ResponseEntity<SupervisorReportResponse> getReportSummary() {
         return ResponseEntity.ok(reportService.generateSummary());
     }
+
+    /** 7-day daily home-visits + missed-doses trend — powers the supervisor dashboard area chart. */
+    @GetMapping("/activity/weekly")
+    public ResponseEntity<List<DailyTrendPoint>> getWeeklyActivity() {
+        return ResponseEntity.ok(dashboardService.getWeeklyActivity());
+    }
 }

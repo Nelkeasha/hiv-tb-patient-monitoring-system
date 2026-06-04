@@ -56,6 +56,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // ── Public — no JWT required ──────────────────────
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/sms/callback").permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
@@ -64,11 +65,16 @@ public class SecurityConfig {
                         .requestMatchers("/health").permitAll()
 
                         // ── Everything else — valid JWT required ──────────
-                        // Role-level enforcement is handled by @PreAuthorize
-                        // on each controller method. ADMIN / SYSTEM_ADMIN are
-                        // included in every @PreAuthorize, giving them full
-                        // unrestricted access across all endpoints.
                         .anyRequest().authenticated()
+                )
+                // Return 401 (not 403) for missing/invalid token so the frontend
+                // interceptor can distinguish unauthenticated from forbidden.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((req, res, e) -> {
+                            res.setStatus(401);
+                            res.setContentType("application/json");
+                            res.getWriter().write("{\"error\":\"Unauthorized\"}");
+                        })
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

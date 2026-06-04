@@ -217,6 +217,33 @@ public class SupervisorDashboardService {
                 .toList();
     }
 
+    // ── Trend ─────────────────────────────────────────────────────────────────
+
+    /** 7-day daily home-visits + missed-doses trend — powers the supervisor dashboard area chart. */
+    public List<DailyTrendPoint> getWeeklyActivity() {
+        Supervisor supervisor = resolveSupervisor();
+        UUID facilityId = supervisor.getFacility().getId();
+        LocalDate today = LocalDate.now();
+        List<DailyTrendPoint> result = new ArrayList<>();
+
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            String day = date.getDayOfWeek()
+                    .getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH);
+
+            LocalDateTime dayStart = date.atStartOfDay();
+            LocalDateTime dayEnd   = date.plusDays(1).atStartOfDay();
+
+            long visits = homeVisitRepository.countByFacilityAndDay(facilityId, dayStart, dayEnd);
+            long missed = confirmationLogRepository.countMissedByFacilityAndDate(facilityId, date);
+
+            result.add(DailyTrendPoint.builder()
+                    .day(day).visits((int) visits).missed((int) missed)
+                    .build());
+        }
+        return result;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Supervisor resolveSupervisor() {

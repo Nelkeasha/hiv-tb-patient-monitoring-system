@@ -2,6 +2,8 @@ package com.nelly.hivtbmonitoringsystem.repository;
 
 import com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -25,4 +27,18 @@ public interface ConfirmationLogRepository extends JpaRepository<ConfirmationLog
     long countMissedDosesByChwSince(
             @org.springframework.data.repository.query.Param("chwId") UUID chwId,
             @org.springframework.data.repository.query.Param("after") LocalDate after);
+
+    /** All logs for a facility on a specific date — used for daily adherence trend. */
+    @Query("SELECT cl FROM ConfirmationLog cl " +
+           "WHERE cl.patient.facility.id = :facilityId AND cl.scheduledDate = :date")
+    List<ConfirmationLog> findByFacilityIdAndScheduledDate(
+            @Param("facilityId") UUID facilityId,
+            @Param("date") LocalDate date);
+
+    /** Missed logs for a facility on a specific date — used for supervisor missed trend. */
+    @Query("SELECT COUNT(cl) FROM ConfirmationLog cl " +
+           "WHERE cl.patient.facility.id = :facilityId AND cl.scheduledDate = :date AND cl.isMissed = true")
+    long countMissedByFacilityAndDate(
+            @Param("facilityId") UUID facilityId,
+            @Param("date") LocalDate date);
 }

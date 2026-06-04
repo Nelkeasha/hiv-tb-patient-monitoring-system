@@ -13,6 +13,7 @@ import java.util.UUID;
 public interface PatientRepository extends JpaRepository<Patient, UUID> {
     Optional<Patient> findByPatientCode(String patientCode);
     Optional<Patient> findByNationalId(String nationalId);
+    Optional<Patient> findByPhoneNumber(String phoneNumber);
     Optional<Patient> findByFhirPatientId(String fhirPatientId);
     List<Patient> findByChwId(UUID chwId);
     List<Patient> findByFacilityId(UUID facilityId);

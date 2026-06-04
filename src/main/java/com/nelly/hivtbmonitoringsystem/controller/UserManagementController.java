@@ -51,6 +51,11 @@ public class UserManagementController {
         return ResponseEntity.ok(userManagementService.getAllUsers());
     }
 
+    @GetMapping("/{userId}")
+    public ResponseEntity<UserSummaryResponse> getUser(@PathVariable UUID userId) {
+        return ResponseEntity.ok(userManagementService.getUserById(userId));
+    }
+
     @GetMapping("/facilities")
     public ResponseEntity<List<FacilityResponse>> getFacilities() {
         return ResponseEntity.ok(userManagementService.getFacilities());

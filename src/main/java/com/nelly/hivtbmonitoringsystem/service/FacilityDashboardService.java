@@ -12,6 +12,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.TextStyle;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -27,6 +30,7 @@ public class FacilityDashboardService {
     private final AiRiskScoreRepository aiRiskScoreRepository;
     private final AlertRepository alertRepository;
     private final HomeVisitRepository homeVisitRepository;
+    private final ConfirmationLogRepository confirmationLogRepository;
     private final SystemUserRepository systemUserRepository;
 
     public FacilityStatsResponse getStats() {
@@ -202,6 +206,36 @@ public class FacilityDashboardService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** 7-day daily adherence trend for the facility — used by the clinical dashboard chart. */
+    public List<DailyTrendPoint> getAdherenceTrend() {
+        FacilityProvider provider = resolveProvider();
+        UUID facilityId = provider.getFacility().getId();
+        LocalDate today = LocalDate.now();
+        List<DailyTrendPoint> result = new ArrayList<>();
+
+        for (int i = 6; i >= 0; i--) {
+            LocalDate date = today.minusDays(i);
+            String day = date.getDayOfWeek()
+                    .getDisplayName(TextStyle.SHORT, java.util.Locale.ENGLISH);
+
+            List<com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog> logs =
+                    confirmationLogRepository.findByFacilityIdAndScheduledDate(facilityId, date);
+
+            int total     = logs.size();
+            int notMissed = (int) logs.stream().filter(cl -> !Boolean.TRUE.equals(cl.getIsMissed())).count();
+            int inWindow  = (int) logs.stream()
+                    .filter(cl -> Boolean.TRUE.equals(cl.getIsWithinWindow())).count();
+
+            int adherence = total > 0 ? Math.round(notMissed * 100f / total) : 0;
+            int confirmed = total > 0 ? Math.round(inWindow  * 100f / total) : 0;
+
+            result.add(DailyTrendPoint.builder()
+                    .day(day).adherence(adherence).confirmed(confirmed)
+                    .build());
+        }
+        return result;
+    }
 
     private FacilityProvider resolveProvider() {
         String email = SecurityUtil.getCurrentUserEmail();

@@ -44,19 +44,33 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void seedAdminUser() {
-        if (userRepository.existsByEmail("admin@hivtb.rw")) return;
-        SystemUser admin = SystemUser.builder()
-                .fullName("System Administrator")
-                .email("admin@hivtb.rw")
-                .phoneNumber("+250780000000")
-                .passwordHash(passwordEncoder.encode("Admin@2026"))
-                .role(UserRole.SYSTEM_ADMIN)
-                .isActive(true)
-                .mustChangePassword(false)
-                .preferredLanguage("en")
-                .build();
-        userRepository.save(admin);
-        log.info("Default admin user created: admin@hivtb.rw / Admin@2026");
+        userRepository.findByEmail("admin@hivtb.rw").ifPresentOrElse(existing -> {
+            boolean changed = false;
+            if (!Boolean.TRUE.equals(existing.getIsActive())) {
+                existing.setIsActive(true);
+                changed = true;
+                log.warn("Admin user was deactivated — re-activating: admin@hivtb.rw");
+            }
+            if (existing.getRole() != UserRole.SYSTEM_ADMIN) {
+                existing.setRole(UserRole.SYSTEM_ADMIN);
+                changed = true;
+                log.warn("Admin role was changed — restoring SYSTEM_ADMIN: admin@hivtb.rw");
+            }
+            if (changed) userRepository.save(existing);
+        }, () -> {
+            SystemUser admin = SystemUser.builder()
+                    .fullName("System Administrator")
+                    .email("admin@hivtb.rw")
+                    .phoneNumber("+250780000000")
+                    .passwordHash(passwordEncoder.encode("Admin@2026"))
+                    .role(UserRole.SYSTEM_ADMIN)
+                    .isActive(true)
+                    .mustChangePassword(false)
+                    .preferredLanguage("en")
+                    .build();
+            userRepository.save(admin);
+            log.info("Default admin user created: admin@hivtb.rw / Admin@2026");
+        });
     }
 
     private void seedTestChw() {

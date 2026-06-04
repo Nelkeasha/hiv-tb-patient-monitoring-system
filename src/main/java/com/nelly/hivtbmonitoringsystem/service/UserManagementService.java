@@ -175,16 +175,14 @@ public class UserManagementService {
 
     public List<UserSummaryResponse> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(u -> UserSummaryResponse.builder()
-                        .id(u.getId())
-                        .fullName(u.getFullName())
-                        .email(u.getEmail())
-                        .phoneNumber(u.getPhoneNumber())
-                        .role(u.getRole().name())
-                        .isActive(u.getIsActive())
-                        .createdAt(u.getCreatedAt())
-                        .build())
+                .map(this::toSummary)
                 .collect(Collectors.toList());
+    }
+
+    public UserSummaryResponse getUserById(UUID userId) {
+        SystemUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        return toSummary(user);
     }
 
     @Transactional
@@ -192,17 +190,25 @@ public class UserManagementService {
         SystemUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
         boolean wasActive = Boolean.TRUE.equals(user.getIsActive());
+        // Prevent deactivating the protected system admin account
+        if (wasActive && "admin@hivtb.rw".equals(user.getEmail())) {
+            throw new RuntimeException("The system administrator account cannot be deactivated.");
+        }
         user.setIsActive(!wasActive);
         userRepository.save(user);
         auditLogService.log(wasActive ? "DEACTIVATE_USER" : "ACTIVATE_USER", "system_users", user.getId());
+        return toSummary(user);
+    }
+
+    private UserSummaryResponse toSummary(SystemUser u) {
         return UserSummaryResponse.builder()
-                .id(user.getId())
-                .fullName(user.getFullName())
-                .email(user.getEmail())
-                .phoneNumber(user.getPhoneNumber())
-                .role(user.getRole().name())
-                .isActive(user.getIsActive())
-                .createdAt(user.getCreatedAt())
+                .id(u.getId())
+                .fullName(u.getFullName())
+                .email(u.getEmail())
+                .phoneNumber(u.getPhoneNumber())
+                .role(u.getRole().name())
+                .isActive(u.getIsActive())
+                .createdAt(u.getCreatedAt())
                 .build();
     }
 

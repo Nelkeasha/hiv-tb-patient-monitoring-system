@@ -16,22 +16,38 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/chw/visits")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
 public class HomeVisitController {
 
     private final HomeVisitService homeVisitService;
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<HomeVisitResponse> recordVisit(@Valid @RequestBody RecordVisitRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(homeVisitService.recordVisit(request));
     }
 
     @GetMapping("/patient/{patientId}")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<List<HomeVisitResponse>> getVisitsForPatient(@PathVariable UUID patientId) {
         return ResponseEntity.ok(homeVisitService.getVisitsForPatient(patientId));
     }
 
+    @GetMapping("/patient/{patientId}/latest")
+    @PreAuthorize("hasAnyRole('CHW', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<HomeVisitResponse> getLatestForPatient(@PathVariable UUID patientId) {
+        return homeVisitService.getLatestForPatient(patientId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/chw/{chwId}")
+    @PreAuthorize("hasAnyRole('SUPERVISOR', 'CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<List<HomeVisitResponse>> getByChw(@PathVariable UUID chwId) {
+        return ResponseEntity.ok(homeVisitService.getVisitsForChw(chwId));
+    }
+
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<HomeVisitResponse> getVisit(@PathVariable UUID id) {
         return ResponseEntity.ok(homeVisitService.getVisit(id));
     }

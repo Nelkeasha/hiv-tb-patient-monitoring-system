@@ -49,16 +49,33 @@ public class AuditLogService {
         }
     }
 
-    /** Returns the most recent 200 audit entries, optionally filtered by action. */
+    /** Returns audit entries filtered by optional action and/or userId. */
     public List<AuditLogResponse> getAll(String action) {
+        return getAll(action, null);
+    }
+
+    public List<AuditLogResponse> getAll(String action, String userIdStr) {
+        UUID userId = null;
+        if (userIdStr != null && !userIdStr.isBlank()) {
+            try { userId = UUID.fromString(userIdStr); } catch (IllegalArgumentException ignored) {}
+        }
+
         List<AuditLog> logs;
-        if (action != null && !action.isBlank()) {
+        if (userId != null && action != null && !action.isBlank()) {
+            final String act = action;
+            logs = auditLogRepository.findByUserId(userId).stream()
+                    .filter(l -> act.equals(l.getAction()))
+                    .collect(Collectors.toList());
+        } else if (userId != null) {
+            logs = auditLogRepository.findByUserId(userId);
+        } else if (action != null && !action.isBlank()) {
             logs = auditLogRepository.findByAction(action);
         } else {
             logs = auditLogRepository.findAll(
                     PageRequest.of(0, 200, Sort.by(Sort.Direction.DESC, "createdAt"))
             ).getContent();
         }
+
         return logs.stream()
                 .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .map(AuditLogResponse::from)

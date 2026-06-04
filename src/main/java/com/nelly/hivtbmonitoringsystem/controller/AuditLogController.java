@@ -22,7 +22,8 @@ public class AuditLogController {
 
     @GetMapping
     public ResponseEntity<List<AuditLogResponse>> getAuditLog(
-            @RequestParam(required = false) String action) {
-        return ResponseEntity.ok(auditLogService.getAll(action));
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String userId) {
+        return ResponseEntity.ok(auditLogService.getAll(action, userId));
     }
 }

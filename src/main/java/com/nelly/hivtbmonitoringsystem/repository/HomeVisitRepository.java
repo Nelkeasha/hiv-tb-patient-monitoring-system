@@ -33,4 +33,13 @@ public interface HomeVisitRepository extends JpaRepository<HomeVisit, UUID> {
            "GROUP BY hv.patient.id " +
            "HAVING MAX(hv.visitDate) < :cutoff")
     List<UUID> findPatientIdsWithNoVisitSince(@Param("cutoff") LocalDateTime cutoff);
+
+    /** Count visits for an entire facility on a specific calendar day — used for weekly activity trend. */
+    @Query("SELECT COUNT(hv) FROM HomeVisit hv " +
+           "WHERE hv.chw.facility.id = :facilityId " +
+           "AND hv.visitDate >= :dayStart AND hv.visitDate < :dayEnd")
+    long countByFacilityAndDay(
+            @Param("facilityId") UUID facilityId,
+            @Param("dayStart") LocalDateTime dayStart,
+            @Param("dayEnd") LocalDateTime dayEnd);
 }

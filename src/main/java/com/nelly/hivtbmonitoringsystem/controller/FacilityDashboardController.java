@@ -56,4 +56,10 @@ public class FacilityDashboardController {
     public ResponseEntity<FacilityReportResponse> getReportSummary() {
         return ResponseEntity.ok(reportService.generateSummary());
     }
+
+    /** 7-day daily adherence trend — powers the clinical dashboard line chart. */
+    @GetMapping("/adherence/trend")
+    public ResponseEntity<List<DailyTrendPoint>> getAdherenceTrend() {
+        return ResponseEntity.ok(dashboardService.getAdherenceTrend());
+    }
 }
