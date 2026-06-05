@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -16,11 +17,8 @@ public class EnrollPatientRequest {
 
     private LocalDate dateOfBirth;
 
-    /** Accepts "sex" field name. */
+    @JsonAlias("gender")
     private String sex;
-
-    /** Alias — Flutter sends "gender", mapped to sex in service. */
-    private String gender;
 
     private String nationalId;
 

@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -19,8 +20,8 @@ public class ScreenPatientRequest {
 
     private LocalDate dateOfBirth;
 
+    @JsonAlias("gender")
     private String sex;
-    private String gender; // alias
 
     private String phoneNumber;
     private Boolean hasSmartphone = false;

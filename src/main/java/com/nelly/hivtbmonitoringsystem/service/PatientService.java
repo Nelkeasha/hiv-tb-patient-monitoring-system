@@ -50,7 +50,6 @@ public class PatientService {
         String patientCode = generatePatientCode();
         String referralId  = generateReferralId(req.getSector() != null ? req.getSector() : req.getVillage());
 
-        String sex = (req.getSex() != null && !req.getSex().isBlank()) ? req.getSex() : req.getGender();
         DiagnosisType diagnosisType = parseSuspectedCondition(req.getSuspectedCondition());
 
         String symptoms = req.getSymptoms() != null
@@ -61,7 +60,7 @@ public class PatientService {
                 .patientCode(patientCode)
                 .fullName(req.getFullName())
                 .dateOfBirth(req.getDateOfBirth())
-                .sex(sex != null ? sex : "UNKNOWN")
+                .sex(req.getSex() != null ? req.getSex() : "UNKNOWN")
                 .phoneNumber(req.getPhoneNumber())
                 .hasSmartphone(req.getHasSmartphone() != null ? req.getHasSmartphone() : false)
                 .diagnosisType(diagnosisType)
@@ -235,8 +234,6 @@ public class PatientService {
             throw new RuntimeException("National ID already registered: " + req.getNationalId());
         }
 
-        String sex = (req.getSex() != null && !req.getSex().isBlank()) ? req.getSex() : req.getGender();
-
         DiagnosisType diagnosisType = req.getDiagnosisType();
         if (diagnosisType == null) {
             boolean hivPositive = "POSITIVE".equalsIgnoreCase(req.getHivStatus());
@@ -252,7 +249,7 @@ public class PatientService {
                 .patientCode(patientCode)
                 .fullName(req.getFullName())
                 .dateOfBirth(req.getDateOfBirth())
-                .sex(sex)
+                .sex(req.getSex())
                 .nationalId(req.getNationalId())
                 .phoneNumber(req.getPhoneNumber())
                 .hasSmartphone(req.getHasSmartphone() != null ? req.getHasSmartphone() : false)
