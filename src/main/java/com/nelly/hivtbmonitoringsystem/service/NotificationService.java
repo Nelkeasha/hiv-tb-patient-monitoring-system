@@ -26,6 +26,7 @@ public class NotificationService {
     private final AlertService alertService;
     private final EmailService emailService;
     private final FcmService fcmService;
+    private final SmsOutboundService smsOutboundService;
     private final SystemUserRepository userRepository;
 
     // ── LTFU Events ───────────────────────────────────────────────────────────
@@ -240,6 +241,14 @@ public class NotificationService {
         }
 
         log.info("PATIENT_CONFIRMED notification sent: patient={} chw={}", patient.getId(), chw.getId());
+    }
+
+    // ── Patient App Account Created ───────────────────────────────────────────
+
+    public void notifyPatientAccountCreated(String phone, String fullName,
+                                            String loginEmail, String tempPassword) {
+        smsOutboundService.sendPatientWelcome(phone, fullName, loginEmail, tempPassword);
+        log.info("Patient welcome SMS dispatched to: {}", phone);
     }
 
     // ── User Management Events ────────────────────────────────────────────────

@@ -192,14 +192,16 @@ public class PatientService {
         patientRepository.save(patient);
 
         // Create app account if patient has a smartphone and no account yet
+        String createdLoginEmail = null;
+        String createdTempPass   = null;
         if (Boolean.TRUE.equals(patient.getHasSmartphone()) && patient.getUser() == null) {
-            String tempPass = generateTempPassword();
-            String loginEmail = patient.getPatientCode().toLowerCase() + "@hivtb.rw";
+            createdTempPass  = generateTempPassword();
+            createdLoginEmail = patient.getPatientCode().toLowerCase() + "@hivtb.rw";
             SystemUser patientUser = SystemUser.builder()
                     .fullName(patient.getFullName())
-                    .email(loginEmail)
+                    .email(createdLoginEmail)
                     .phoneNumber(patient.getPhoneNumber())
-                    .passwordHash(passwordEncoder.encode(tempPass))
+                    .passwordHash(passwordEncoder.encode(createdTempPass))
                     .role(UserRole.PATIENT)
                     .isActive(true)
                     .mustChangePassword(true)
@@ -210,6 +212,15 @@ public class PatientService {
             patientRepository.save(patient);
         }
         auditLogService.log("CONFIRM_PATIENT", "patients", patient.getId());
+
+        // SMS credentials to patient if account was just created
+        if (createdLoginEmail != null && patient.getPhoneNumber() != null) {
+            notificationService.notifyPatientAccountCreated(
+                    patient.getPhoneNumber(),
+                    patient.getFullName(),
+                    createdLoginEmail,
+                    createdTempPass);
+        }
 
         // Notify the CHW who screened this patient
         notificationService.notifyPatientConfirmed(patient, patient.getChw(), currentUser.getFullName());
