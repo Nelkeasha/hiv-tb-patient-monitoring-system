@@ -13,7 +13,8 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class SmsOutboundService {
 
-    private static final String AT_SMS_URL = "https://api.africastalking.com/version1/messaging";
+    private static final String AT_SMS_URL         = "https://api.africastalking.com/version1/messaging";
+    private static final String AT_SMS_SANDBOX_URL  = "https://api.sandbox.africastalking.com/version1/messaging";
 
     @Value("${app.sms.enabled:false}")
     private boolean enabled;
@@ -47,8 +48,9 @@ public class SmsOutboundService {
             body.add("message", message);
             body.add("from", senderId);
 
+            String url = "sandbox".equalsIgnoreCase(username) ? AT_SMS_SANDBOX_URL : AT_SMS_URL;
             ResponseEntity<String> response = restTemplate.exchange(
-                    AT_SMS_URL, HttpMethod.POST,
+                    url, HttpMethod.POST,
                     new HttpEntity<>(body, headers), String.class);
 
             log.info("SMS sent to {}: status={}", toPhone, response.getStatusCode());

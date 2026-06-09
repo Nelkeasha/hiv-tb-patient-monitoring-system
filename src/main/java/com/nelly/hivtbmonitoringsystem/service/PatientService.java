@@ -200,7 +200,6 @@ public class PatientService {
             SystemUser patientUser = SystemUser.builder()
                     .fullName(patient.getFullName())
                     .email(createdLoginEmail)
-                    .phoneNumber(patient.getPhoneNumber())
                     .passwordHash(passwordEncoder.encode(createdTempPass))
                     .role(UserRole.PATIENT)
                     .isActive(true)
