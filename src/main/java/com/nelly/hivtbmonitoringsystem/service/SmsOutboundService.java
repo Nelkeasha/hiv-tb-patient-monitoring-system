@@ -34,6 +34,18 @@ public class SmsOutboundService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /** Sandbox doesn't accept custom sender IDs/shortcodes unless registered, so omit "from" there. */
+    private MultiValueMap<String, String> buildBody(String toPhone, String message) {
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("username", username);
+        body.add("to", toPhone);
+        body.add("message", message);
+        if (!"sandbox".equalsIgnoreCase(username)) {
+            body.add("from", senderId);
+        }
+        return body;
+    }
+
     @Async
     public void send(String toPhone, String message) {
         if (!enabled) {
@@ -46,11 +58,7 @@ public class SmsOutboundService {
             headers.set("apiKey", apiKey);
             headers.set("Accept", "application/json");
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("username", username);
-            body.add("to", toPhone);
-            body.add("message", message);
-            body.add("from", senderId);
+            MultiValueMap<String, String> body = buildBody(toPhone, message);
 
             String url = "sandbox".equalsIgnoreCase(username) ? AT_SMS_SANDBOX_URL : AT_SMS_URL;
             ResponseEntity<String> response = restTemplate.exchange(
@@ -88,11 +96,7 @@ public class SmsOutboundService {
             headers.set("apiKey", apiKey);
             headers.set("Accept", "application/json");
 
-            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-            body.add("username", username);
-            body.add("to", toPhone);
-            body.add("message", message);
-            body.add("from", senderId);
+            MultiValueMap<String, String> body = buildBody(toPhone, message);
 
             String url = "sandbox".equalsIgnoreCase(username) ? AT_SMS_SANDBOX_URL : AT_SMS_URL;
             ResponseEntity<String> response = restTemplate.exchange(
