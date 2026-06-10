@@ -207,6 +207,11 @@ public class NotificationService {
     // ── Patient Confirmed (Route B) ───────────────────────────────────────────
 
     public void notifyPatientConfirmed(Patient patient, Chw chw, String confirmedByName) {
+        if (chw == null || chw.getUser() == null) {
+            log.info("PATIENT_CONFIRMED: no CHW assigned to patient={}, skipping CHW notification", patient.getId());
+            return;
+        }
+
         String diagnosisName = patient.getDiagnosisType() != null
                 ? patient.getDiagnosisType().name().replace("_", " ")
                 : "Unknown";
