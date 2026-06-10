@@ -2,10 +2,12 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.TestEmailRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.TestPushRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.TestSmsRequest;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.service.EmailService;
 import com.nelly.hivtbmonitoringsystem.service.FcmService;
+import com.nelly.hivtbmonitoringsystem.service.SmsOutboundService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,7 @@ public class NotificationTestController {
 
     private final EmailService emailService;
     private final FcmService fcmService;
+    private final SmsOutboundService smsOutboundService;
     private final SystemUserRepository userRepository;
 
     @PostMapping("/test-email")
@@ -105,5 +108,15 @@ public class NotificationTestController {
                 "userId", request.getUserId().toString(),
                 "recipient", user.getFullName()
         ));
+    }
+
+    @GetMapping("/sms-config")
+    public ResponseEntity<Map<String, Object>> smsConfig() {
+        return ResponseEntity.ok(smsOutboundService.getConfigStatus());
+    }
+
+    @PostMapping("/test-sms")
+    public ResponseEntity<Map<String, Object>> testSms(@Valid @RequestBody TestSmsRequest request) {
+        return ResponseEntity.ok(smsOutboundService.sendSync(request.getPhone(), request.getMessage()));
     }
 }

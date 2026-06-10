@@ -7,7 +7,11 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -57,6 +61,56 @@ public class SmsOutboundService {
         } catch (Exception e) {
             log.error("Failed to send SMS to {}: {}", toPhone, e.getMessage());
         }
+    }
+
+    /** Config status for diagnostics — never exposes the actual API key. */
+    public Map<String, Object> getConfigStatus() {
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("enabled", enabled);
+        status.put("apiKeyConfigured", apiKey != null && !apiKey.isBlank());
+        status.put("username", username);
+        status.put("senderId", senderId);
+        status.put("endpoint", "sandbox".equalsIgnoreCase(username) ? AT_SMS_SANDBOX_URL : AT_SMS_URL);
+        return status;
+    }
+
+    /** Synchronous send for diagnostics — returns the AT response or error instead of just logging it. */
+    public Map<String, Object> sendSync(String toPhone, String message) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (!enabled) {
+            result.put("status", "skipped");
+            result.put("reason", "SMS disabled (app.sms.enabled=false)");
+            return result;
+        }
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+            headers.set("apiKey", apiKey);
+            headers.set("Accept", "application/json");
+
+            MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+            body.add("username", username);
+            body.add("to", toPhone);
+            body.add("message", message);
+            body.add("from", senderId);
+
+            String url = "sandbox".equalsIgnoreCase(username) ? AT_SMS_SANDBOX_URL : AT_SMS_URL;
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.POST,
+                    new HttpEntity<>(body, headers), String.class);
+
+            result.put("status", "sent");
+            result.put("httpStatus", response.getStatusCode().value());
+            result.put("body", response.getBody());
+        } catch (HttpClientErrorException e) {
+            result.put("status", "error");
+            result.put("httpStatus", e.getStatusCode().value());
+            result.put("body", e.getResponseBodyAsString());
+        } catch (Exception e) {
+            result.put("status", "error");
+            result.put("error", e.getMessage());
+        }
+        return result;
     }
 
     @Async
