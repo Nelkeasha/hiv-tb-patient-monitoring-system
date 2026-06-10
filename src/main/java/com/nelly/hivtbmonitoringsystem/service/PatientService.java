@@ -197,9 +197,20 @@ public class PatientService {
         if (Boolean.TRUE.equals(patient.getHasSmartphone()) && patient.getUser() == null) {
             createdTempPass  = generateTempPassword();
             createdLoginEmail = patient.getPatientCode().toLowerCase() + "@hivtb.rw";
+
+            // system_users.phone_number is NOT NULL and UNIQUE. Reuse the patient's
+            // phone if it's free; otherwise fall back to a synthetic value derived
+            // from the patient code so the constraint is satisfied without colliding
+            // with the CHW (or another user) who may already own that phone number.
+            String userPhone = patient.getPhoneNumber();
+            if (userPhone == null || userRepository.existsByPhoneNumber(userPhone)) {
+                userPhone = "PT-" + patient.getPatientCode();
+            }
+
             SystemUser patientUser = SystemUser.builder()
                     .fullName(patient.getFullName())
                     .email(createdLoginEmail)
+                    .phoneNumber(userPhone)
                     .passwordHash(passwordEncoder.encode(createdTempPass))
                     .role(UserRole.PATIENT)
                     .isActive(true)
