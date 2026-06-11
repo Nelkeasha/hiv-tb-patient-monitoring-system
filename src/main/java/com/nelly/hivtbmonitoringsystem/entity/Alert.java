@@ -61,6 +61,13 @@ public class Alert {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resolved_by")
+    private SystemUser resolvedBy;
+
+    @Column(name = "escalated_at")
+    private LocalDateTime escalatedAt;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

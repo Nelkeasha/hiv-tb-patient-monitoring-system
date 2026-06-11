@@ -200,6 +200,17 @@ public class UserManagementService {
         return toSummary(user);
     }
 
+    @Transactional
+    public UserSummaryResponse unlockUser(UUID userId) {
+        SystemUser user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        user.setAccountLocked(false);
+        user.setFailedLoginAttempts(0);
+        userRepository.save(user);
+        auditLogService.log("UNLOCK_USER", "system_users", user.getId());
+        return toSummary(user);
+    }
+
     private UserSummaryResponse toSummary(SystemUser u) {
         return UserSummaryResponse.builder()
                 .id(u.getId())
@@ -208,6 +219,8 @@ public class UserManagementService {
                 .phoneNumber(u.getPhoneNumber())
                 .role(u.getRole().name())
                 .isActive(u.getIsActive())
+                .accountLocked(u.getAccountLocked())
+                .failedLoginAttempts(u.getFailedLoginAttempts())
                 .createdAt(u.getCreatedAt())
                 .build();
     }

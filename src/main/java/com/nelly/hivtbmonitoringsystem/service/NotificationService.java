@@ -28,6 +28,7 @@ public class NotificationService {
     private final FcmService fcmService;
     private final SmsOutboundService smsOutboundService;
     private final SystemUserRepository userRepository;
+    private final com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository facilityProviderRepository;
 
     // ── LTFU Events ───────────────────────────────────────────────────────────
 
@@ -134,6 +135,42 @@ public class NotificationService {
                 });
 
         log.info("LTFU_CONFIRMED notification sent: patient={}", patient.getId());
+    }
+
+    /**
+     * Fired when a CHW resolves a tracing task (3.4.4).
+     * Notifies all active facility providers at the patient's facility.
+     */
+    public void notifyTracingResolved(Patient patient, Chw chw, TracingTask task) {
+        if (patient.getFacility() == null) return;
+
+        facilityProviderRepository.findByFacilityId(patient.getFacility().getId()).forEach(provider -> {
+            // 1. In-app alert
+            alertService.createTracingResolvedAlert(patient, chw, provider, task);
+
+            // 2. Email to provider
+            SystemUser providerUser = provider.getUser();
+            if (providerUser != null && providerUser.getEmail() != null) {
+                emailService.sendTracingResolvedAlert(
+                        providerUser.getEmail(),
+                        providerUser.getFullName(),
+                        patient.getFullName(),
+                        patient.getPatientCode(),
+                        chw.getUser().getFullName(),
+                        task.getOutcome(),
+                        task.getResolutionPlan()
+                );
+            }
+
+            // 3. FCM push to provider
+            if (providerUser != null && providerUser.getFcmToken() != null) {
+                fcmService.sendGeneric(providerUser.getFcmToken(),
+                        "Tracing Resolved — " + patient.getFullName(),
+                        "Outcome: " + task.getOutcome(), "LTFU_TRACING_RESOLVED");
+            }
+        });
+
+        log.info("TRACING_RESOLVED notification sent: patient={} task={}", patient.getId(), task.getId());
     }
 
     // ── Missed Dose Events ────────────────────────────────────────────────────

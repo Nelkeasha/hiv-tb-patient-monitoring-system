@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
 import com.nelly.hivtbmonitoringsystem.enums.RiskLevel;
+import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class SupervisorDashboardService {
     private final ConfirmationLogRepository confirmationLogRepository;
     private final MedicationRecordRepository medicationRecordRepository;
     private final SystemUserRepository systemUserRepository;
+    private final FacilityRepository facilityRepository;
 
     public SupervisorStatsResponse getStats() {
         Supervisor supervisor = resolveSupervisor();
@@ -251,8 +253,14 @@ public class SupervisorDashboardService {
         SystemUser user = systemUserRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
         return supervisorRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Supervisor profile not found"));
+                .orElseGet(() -> {
+                    if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.SYSTEM_ADMIN) {
+                        Facility facility = facilityRepository.findByIsActiveTrue().stream().findFirst()
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No active facility configured"));
+                        return Supervisor.builder().user(user).facility(facility).district(facility.getDistrict()).build();
+                    }
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Supervisor profile not found");
+                });
     }
 
     private AlertResponse toAlertResponse(Alert a) {

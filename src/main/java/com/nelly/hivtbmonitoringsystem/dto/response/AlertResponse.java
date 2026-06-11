@@ -21,5 +21,6 @@ public class AlertResponse {
     private Boolean isRead;
     private Boolean isResolved;
     private LocalDateTime resolvedAt;
+    private String resolvedByName;
     private LocalDateTime createdAt;
 }

@@ -42,6 +42,12 @@ public class SystemUser {
     @Column(name = "must_change_password")
     private Boolean mustChangePassword = false;
 
+    @Column(name = "failed_login_attempts")
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "account_locked")
+    private Boolean accountLocked = false;
+
     @Column(name = "preferred_language", length = 10)
     private String preferredLanguage = "rw";
 

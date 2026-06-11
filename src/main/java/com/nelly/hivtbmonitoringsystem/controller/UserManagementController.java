@@ -66,6 +66,11 @@ public class UserManagementController {
         return ResponseEntity.ok(userManagementService.toggleUserStatus(id));
     }
 
+    @PutMapping("/{id}/unlock")
+    public ResponseEntity<UserSummaryResponse> unlockUser(@PathVariable UUID id) {
+        return ResponseEntity.ok(userManagementService.unlockUser(id));
+    }
+
     @PutMapping("/{id}/reset-password")
     public ResponseEntity<StaffResponse> resetPassword(@PathVariable UUID id) {
         return ResponseEntity.ok(userManagementService.resetPassword(id));

@@ -13,7 +13,10 @@ import com.nelly.hivtbmonitoringsystem.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
@@ -33,17 +36,38 @@ public class AuthService {
     private final UserDetailsService userDetailsService;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final LoginAttemptService loginAttemptService;
 
     @Value("${app.jwt.refresh-expiration}")
     private long refreshExpiration;
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        authManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        try {
+            authManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
+        } catch (AuthenticationException ex) {
+            UUID failedUserId = userRepository.findByEmail(request.getEmail())
+                    .map(SystemUser::getId)
+                    .orElse(null);
+
+            if (ex instanceof BadCredentialsException) {
+                loginAttemptService.recordFailedAttempt(request.getEmail());
+            }
+
+            auditLogService.log(ex instanceof LockedException ? "LOGIN_BLOCKED_LOCKED" : "LOGIN_FAILED",
+                    "system_users", failedUserId,
+                    "{\"email\":\"" + request.getEmail() + "\"}", null);
+            throw ex;
+        }
 
         SystemUser user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (user.getFailedLoginAttempts() != null && user.getFailedLoginAttempts() > 0) {
+            user.setFailedLoginAttempts(0);
+            userRepository.save(user);
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
         String accessToken = jwtUtil.generateToken(userDetails, user.getRole().name());

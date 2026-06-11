@@ -16,5 +16,7 @@ public class UserSummaryResponse {
     private String phoneNumber;
     private String role;
     private Boolean isActive;
+    private Boolean accountLocked;
+    private Integer failedLoginAttempts;
     private LocalDateTime createdAt;
 }

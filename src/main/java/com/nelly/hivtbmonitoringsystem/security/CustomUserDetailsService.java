@@ -30,6 +30,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new User(
                 user.getEmail(),
                 user.getPasswordHash(),
+                true,
+                true,
+                true,
+                !Boolean.TRUE.equals(user.getAccountLocked()),
                 List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
         );
     }

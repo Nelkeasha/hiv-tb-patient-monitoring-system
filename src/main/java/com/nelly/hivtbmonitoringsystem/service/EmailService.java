@@ -197,6 +197,44 @@ public class EmailService {
             "— Dream Medical Center HIV/TB Monitoring System");
     }
 
+    // ── LTFU tracing resolved ─────────────────────────────────────────────────
+
+    @Async
+    public void sendTracingResolvedAlert(String toEmail, String providerName,
+                                         String patientName, String patientCode,
+                                         String chwName, String outcome, String resolutionPlan) {
+        if (!enabled) return;
+        send(toEmail,
+            "Tracing Resolved — " + patientName,
+            "Dear " + providerName + ",\n\n" +
+            "CHW " + chwName + " has completed a tracing visit for patient " +
+            patientName + " (" + patientCode + ").\n\n" +
+            "Outcome: " + outcome + "\n" +
+            (resolutionPlan != null && !resolutionPlan.isBlank()
+                    ? "Re-engagement plan: " + resolutionPlan + "\n\n"
+                    : "\n") +
+            "The patient's AI risk score has been updated to reflect this outcome. " +
+            "Please review the patient's record on the clinical dashboard.\n\n" +
+            "— Dream Medical Center HIV/TB Monitoring System");
+    }
+
+    // ── Alert escalation (48h unacknowledged) ─────────────────────────────────
+
+    @Async
+    public void sendAlertEscalation(String toEmail, String recipientName,
+                                    String alertTitle, String alertMessage, int hoursOpen) {
+        if (!enabled) return;
+        send(toEmail,
+            "🔺 Escalated Alert (unacknowledged " + hoursOpen + "h) — " + alertTitle,
+            "Dear " + recipientName + ",\n\n" +
+            "The following alert has not been acknowledged for over " + hoursOpen + " hours " +
+            "and has been escalated to you for review:\n\n" +
+            "Title:   " + alertTitle + "\n" +
+            "Details: " + alertMessage + "\n\n" +
+            "Please review and take action as soon as possible.\n\n" +
+            "— Dream Medical Center HIV/TB Monitoring System");
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private void send(String to, String subject, String body) {

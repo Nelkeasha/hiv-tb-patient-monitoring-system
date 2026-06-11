@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.service.SmsConfirmationService;
 import com.nelly.hivtbmonitoringsystem.service.SmsConfirmationService.SmsResult;
+import com.nelly.hivtbmonitoringsystem.service.SmsOutboundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -32,6 +33,7 @@ import java.util.Map;
 public class SmsCallbackController {
 
     private final SmsConfirmationService smsConfirmationService;
+    private final SmsOutboundService smsOutboundService;
 
     @PostMapping(value = "/callback", consumes = {
             MediaType.APPLICATION_FORM_URLENCODED_VALUE,
@@ -59,6 +61,10 @@ public class SmsCallbackController {
             case NO_ACTIVE_SCHEDULE -> null;
             case ALREADY_CONFIRMED -> "Your dose was already confirmed today.";
         };
+
+        if (replyHint != null) {
+            smsOutboundService.send(from, replyHint);
+        }
 
         Map<String, String> body = replyHint != null
                 ? Map.of("status", result.name(), "reply", replyHint)

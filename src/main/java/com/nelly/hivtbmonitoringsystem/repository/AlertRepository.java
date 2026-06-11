@@ -35,4 +35,10 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
             "SELECT a FROM Alert a WHERE a.patient.facility.id = :facilityId ORDER BY a.createdAt DESC")
     List<Alert> findByPatientFacilityId(
             @org.springframework.data.repository.query.Param("facilityId") UUID facilityId);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT a FROM Alert a WHERE a.isResolved = false AND a.escalatedAt IS NULL " +
+            "AND a.createdAt < :cutoff")
+    List<Alert> findUnacknowledgedAlertsOlderThan(
+            @org.springframework.data.repository.query.Param("cutoff") java.time.LocalDateTime cutoff);
 }

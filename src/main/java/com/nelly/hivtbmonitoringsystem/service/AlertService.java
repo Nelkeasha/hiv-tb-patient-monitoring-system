@@ -78,6 +78,7 @@ public class AlertService {
         Alert alert = findAndAuthorizeWrite(alertId);
         alert.setIsResolved(true);
         alert.setResolvedAt(LocalDateTime.now());
+        alert.setResolvedBy(resolveCurrentUser());
         return toResponse(alertRepository.save(alert));
     }
 
@@ -151,6 +152,27 @@ public class AlertService {
     }
 
     @Transactional
+    public void createTracingResolvedAlert(Patient patient, Chw chw, FacilityProvider provider, TracingTask task) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .provider(provider)
+                .alertType(AlertType.LTFU_TRACING_RESOLVED)
+                .severity(AlertSeverity.INFO)
+                .title("Tracing Resolved — " + patient.getFullName())
+                .message(String.format(
+                        "Tracing task for patient %s (%s) was resolved by CHW %s. " +
+                        "Outcome: %s. %s",
+                        patient.getFullName(), patient.getPatientCode(),
+                        chw.getUser().getFullName(), task.getOutcome(),
+                        task.getResolutionPlan() != null ? "Plan: " + task.getResolutionPlan() : ""))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        alertRepository.save(alert);
+    }
+
+    @Transactional
     public void createLtfuConfirmedAlert(Patient patient, Chw chw, TracingTask task) {
         Alert alert = Alert.builder()
                 .patient(patient)
@@ -210,6 +232,7 @@ public class AlertService {
                 .isRead(a.getIsRead())
                 .isResolved(a.getIsResolved())
                 .resolvedAt(a.getResolvedAt())
+                .resolvedByName(a.getResolvedBy() != null ? a.getResolvedBy().getFullName() : null)
                 .createdAt(a.getCreatedAt())
                 .build();
     }

@@ -33,6 +33,8 @@ public class TracingTaskService {
     private final SystemUserRepository userRepository;
     private final AlertService alertService;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
+    private final AiRiskScoreService aiRiskScoreService;
 
     // ── Generate (system or admin creates) ───────────────────────────────────
 
@@ -114,6 +116,11 @@ public class TracingTaskService {
 
         task = tracingTaskRepository.save(task);
         auditLogService.log("RESOLVE_TRACING_TASK", "tracing_tasks", task.getId());
+
+        // Notify facility provider(s) and update the patient's AI risk score
+        notificationService.notifyTracingResolved(task.getPatient(), task.getChw(), task);
+        aiRiskScoreService.recalculateAfterTracingResolution(task.getPatient(), task.getOutcome());
+
         log.info("Tracing task resolved: id={} outcome={}", taskId, req.getOutcome());
         return TracingTaskResponse.from(task);
     }

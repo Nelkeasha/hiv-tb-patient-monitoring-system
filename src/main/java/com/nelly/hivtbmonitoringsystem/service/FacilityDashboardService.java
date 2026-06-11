@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.service;
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
+import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class FacilityDashboardService {
     private final HomeVisitRepository homeVisitRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
     private final SystemUserRepository systemUserRepository;
+    private final FacilityRepository facilityRepository;
 
     public FacilityStatsResponse getStats() {
         FacilityProvider provider = resolveProvider();
@@ -242,8 +244,14 @@ public class FacilityDashboardService {
         SystemUser user = systemUserRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
         return facilityProviderRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Facility provider profile not found"));
+                .orElseGet(() -> {
+                    if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.SYSTEM_ADMIN) {
+                        Facility facility = facilityRepository.findByIsActiveTrue().stream().findFirst()
+                                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No active facility configured"));
+                        return FacilityProvider.builder().user(user).facility(facility).build();
+                    }
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Facility provider profile not found");
+                });
     }
 
     private AiRiskScoreResponse toRiskScoreResponse(AiRiskScore s) {

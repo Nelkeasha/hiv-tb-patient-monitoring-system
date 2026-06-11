@@ -105,6 +105,51 @@ public class AiRiskScoreService {
         return toResponse(riskScoreRepository.save(score));
     }
 
+    /**
+     * Called when a tracing task is resolved (3.4.4). Writes a new risk score
+     * entry reflecting the tracing outcome, since a confirmed re-engagement or
+     * a confirmed loss of contact should immediately move the patient's
+     * priority — no need to wait for the next AI scoring cycle.
+     */
+    @Transactional
+    public void recalculateAfterTracingResolution(Patient patient, String outcome) {
+        RiskLevel level;
+        java.math.BigDecimal score;
+        String action;
+
+        switch (outcome) {
+            case "PATIENT_FOUND", "PROXY_AUTHORIZED" -> {
+                level = RiskLevel.MODERATE;
+                score = new java.math.BigDecimal("50.00");
+                action = "Patient re-engaged after tracing visit. Monitor adherence closely over the next 30 days.";
+            }
+            case "PATIENT_HOSPITALIZED" -> {
+                level = RiskLevel.HIGH;
+                score = new java.math.BigDecimal("65.00");
+                action = "Patient hospitalized. Coordinate with facility on treatment continuity post-discharge.";
+            }
+            case "PATIENT_REFUSED" -> {
+                level = RiskLevel.HIGH;
+                score = new java.math.BigDecimal("70.00");
+                action = "Patient refused continued care. Clinical follow-up and counseling recommended.";
+            }
+            default -> { // UNABLE_TO_LOCATE or unrecognized
+                level = RiskLevel.CRITICAL;
+                score = new java.math.BigDecimal("85.00");
+                action = "Patient could not be located during tracing. Consider transfer-out or further escalation.";
+            }
+        }
+
+        AiRiskScore riskScore = AiRiskScore.builder()
+                .patient(patient)
+                .riskLevel(level)
+                .riskScore(score)
+                .recommendedAction(action)
+                .build();
+
+        riskScoreRepository.save(riskScore);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private void authorizePatientAccess(UUID patientId) {

@@ -38,6 +38,7 @@ public class SmsConfirmationService {
     private final DoseScheduleRepository doseScheduleRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
     private final AuditLogService auditLogService;
+    private final AlertService alertService;
 
     public enum SmsResult { CONFIRMED, MISSED, UNRECOGNIZED, PATIENT_NOT_FOUND, NO_ACTIVE_SCHEDULE, ALREADY_CONFIRMED }
 
@@ -76,6 +77,12 @@ public class SmsConfirmationService {
         if (existing.isPresent() && existing.get().getConfirmedAt() != null) {
             log.info("SMS callback: dose already confirmed today for patient={}", patient.getId());
             return SmsResult.ALREADY_CONFIRMED;
+        }
+
+        if (existing.isPresent() && Boolean.TRUE.equals(existing.get().getIsMissed())
+                && existing.get().getConfirmedAt() == null) {
+            log.info("SMS callback: dose already recorded as missed (window closed) for patient={}", patient.getId());
+            return SmsResult.MISSED;
         }
 
         if ("YES".equals(reply) || "OUI".equals(reply) || "YEGO".equals(reply)) {
@@ -140,6 +147,7 @@ public class SmsConfirmationService {
 
         confirmationLogRepository.save(entry);
         auditLogService.log("SMS_MISSED_DOSE", "confirmation_logs", entry.getId());
+        alertService.createMissedDoseAlert(patient, schedule.getPlan());
         log.info("SMS callback: missed dose recorded for patient={}", patient.getId());
         return SmsResult.MISSED;
     }
