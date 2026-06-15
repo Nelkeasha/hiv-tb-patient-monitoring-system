@@ -235,7 +235,7 @@ public class PatientService {
         // Notify the CHW who screened this patient
         notificationService.notifyPatientConfirmed(patient, patient.getChw(), currentUser.getFullName());
 
-        return toResponse(patient, null, null);
+        return toResponse(patient, createdLoginEmail, createdTempPass);
     }
 
     // ── CHW: backward-compat enrollment (also creates PROVISIONAL) ────────────
