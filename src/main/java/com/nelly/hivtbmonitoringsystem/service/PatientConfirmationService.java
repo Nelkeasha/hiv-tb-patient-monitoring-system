@@ -45,8 +45,10 @@ public class PatientConfirmationService {
 
         LocalDate today = LocalDate.now();
 
-        confirmationLogRepository.findByScheduleIdAndScheduledDate(schedule.getId(), today)
-                .filter(existing -> existing.getConfirmedAt() != null)
+        java.util.Optional<ConfirmationLog> existingLog =
+                confirmationLogRepository.findByScheduleIdAndScheduledDate(schedule.getId(), today);
+
+        existingLog.filter(existing -> existing.getConfirmedAt() != null)
                 .ifPresent(existing -> {
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "Dose already confirmed today");
                 });
@@ -65,21 +67,22 @@ public class PatientConfirmationService {
                 ? req.getConfirmationMethod()
                 : ConfirmationChannel.APP;
 
-        ConfirmationLog log = ConfirmationLog.builder()
+        ConfirmationLog log = existingLog.orElseGet(() -> ConfirmationLog.builder()
                 .patient(patient)
                 .plan(schedule.getPlan())
                 .schedule(schedule)
                 .scheduledDate(today)
-                .windowOpenTime(windowOpen)
-                .windowCloseTime(windowClose)
-                .confirmedAt(confirmedAt)
-                .responseTimeSeconds(responseTimeSec)
-                .confirmationMethod(method)
-                .isWithinWindow(isWithinWindow)
-                .isMissed(false)
-                .aiSuspicionFlag(suspicious)
-                .suspicionReason(suspicionReason)
-                .build();
+                .build());
+
+        log.setWindowOpenTime(windowOpen);
+        log.setWindowCloseTime(windowClose);
+        log.setConfirmedAt(confirmedAt);
+        log.setResponseTimeSeconds(responseTimeSec);
+        log.setConfirmationMethod(method);
+        log.setIsWithinWindow(isWithinWindow);
+        log.setIsMissed(false);
+        log.setAiSuspicionFlag(suspicious);
+        log.setSuspicionReason(suspicionReason);
 
         return toResponse(confirmationLogRepository.save(log));
     }
