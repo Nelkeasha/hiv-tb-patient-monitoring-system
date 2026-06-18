@@ -4,8 +4,15 @@ password: Admin@2026
 #CHW
 "email": "jean@hivtb.rw",
 "password": "Jean@2026"
-"email": "chw1@hivtb.rw",
+"email": "chw1@hivtb.rw"
 "password": "Alice@2026"
+
+## Facility provider
+"email": "john@dmc.rw",
+"password": "Jq#KQkuJ6v"
+## Supervisor
+"email": "j.pierre@dmc.rw",
+"password": "Rq7nRFcw!4"
 
 ## Patients
 p1[
@@ -13,12 +20,14 @@ p1[
 "password":Mary@2026
 ]
 p2[
-"email":pt-bd5c2489@hivtb.rw
-"password":Mary@2026
+"email":pt-42b6c368@hivtb.rw
+"password":Kx#Njr9EHL
+chw1
 ]
 p3[
 "email":pt-bd5c2489@hivtb.rw
 "password":Mary@2026
+Jean
 ]
 
 "Missed dose marking is fully automatic. 

@@ -41,7 +41,7 @@ public class FacilityReportService {
         UUID facilityId = provider.getFacility().getId();
 
         // ── Patients ──────────────────────────────────────────────────────────
-        List<Patient> activePatients = patientRepository.findByFacilityIdAndIsActiveTrue(facilityId);
+        List<Patient> activePatients = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED");
         long hivOnly = count(activePatients, p -> p.getDiagnosisType() == DiagnosisType.HIV);
         long tbOnly = count(activePatients, p -> p.getDiagnosisType() == DiagnosisType.TB);
         long hivTb = count(activePatients, p -> p.getDiagnosisType() == DiagnosisType.HIV_TB_COINFECTION);

@@ -23,8 +23,11 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     boolean existsByNationalId(String nationalId);
     Optional<Patient> findByUserId(UUID userId);
     List<Patient> findByFacilityIdAndIsActiveTrue(UUID facilityId);
+    /** "Active patient" for reports/dashboards means confirmed AND active — excludes PROVISIONAL screenings still awaiting confirmation. */
+    List<Patient> findByFacilityIdAndIsActiveTrueAndRegistrationStatus(UUID facilityId, String registrationStatus);
     List<Patient> findByChwIdAndSyncStatus(UUID chwId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
     long countByFacilityIdAndSyncStatus(UUID facilityId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
     List<Patient> findAllByIsActiveTrue();
+    List<Patient> findByIsActiveTrueAndRegistrationStatus(String registrationStatus);
     List<Patient> findByRegistrationStatus(String registrationStatus);
 }

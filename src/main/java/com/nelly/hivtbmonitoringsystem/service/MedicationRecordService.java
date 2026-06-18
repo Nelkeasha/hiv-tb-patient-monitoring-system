@@ -93,4 +93,22 @@ public class MedicationRecordService {
 
         medicationRecordRepository.save(record);
     }
+
+    /**
+     * One-time catch-up for confirmation/missed-dose history recorded before
+     * this service existed — without this, adherence stats stay at 0% until
+     * new activity happens, even though years of confirmation_logs already exist.
+     * Safe to re-run: recalculate() is idempotent per (patient, plan, day).
+     */
+    @Transactional
+    public int backfillAll() {
+        List<Object[]> combos = confirmationLogRepository.findDistinctPatientPlanDateCombos();
+        for (Object[] row : combos) {
+            UUID patientId = (UUID) row[0];
+            UUID planId = (UUID) row[1];
+            LocalDate day = (LocalDate) row[2];
+            recalculate(patientId, planId, day);
+        }
+        return combos.size();
+    }
 }

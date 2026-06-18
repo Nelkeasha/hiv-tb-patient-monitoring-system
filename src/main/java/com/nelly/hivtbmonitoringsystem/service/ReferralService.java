@@ -98,7 +98,7 @@ public class ReferralService {
 
         ReferralStatus newStatus = req.getStatus() != null ? req.getStatus() : ReferralStatus.CONFIRMED;
         referral.setStatus(newStatus);
-        referral.setFacilityAppointmentDate(req.getAppointmentDate());
+        referral.setFacilityAppointmentDate(req.getFacilityAppointmentDate());
         referral.setProviderNotes(req.getProviderNotes());
         referral.setConfirmedByProvider(provider);
 

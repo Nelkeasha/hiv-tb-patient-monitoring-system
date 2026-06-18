@@ -41,7 +41,7 @@ public class SupervisorDashboardService {
         List<Chw> allChws = chwRepository.findByFacilityId(facilityId);
         long activeChws = allChws.stream().filter(c -> Boolean.TRUE.equals(c.getIsActive())).count();
 
-        long activePatients = patientRepository.findByFacilityIdAndIsActiveTrue(facilityId).size();
+        long activePatients = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED").size();
 
         Set<UUID> activeFacilityPatientIds = patientRepository
                 .findByFacilityIdAndIsActiveTrue(facilityId).stream()
@@ -188,7 +188,7 @@ public class SupervisorDashboardService {
         Supervisor supervisor = resolveSupervisor();
         UUID facilityId = supervisor.getFacility().getId();
 
-        Map<UUID, Patient> patientMap = patientRepository.findByFacilityIdAndIsActiveTrue(facilityId).stream()
+        Map<UUID, Patient> patientMap = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED").stream()
                 .collect(Collectors.toMap(Patient::getId, p -> p));
 
         return aiRiskScoreRepository.findLatestScoresForFacilityPatients(facilityId).stream()

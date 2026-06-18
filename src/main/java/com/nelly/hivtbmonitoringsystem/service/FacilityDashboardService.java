@@ -39,7 +39,7 @@ public class FacilityDashboardService {
         FacilityProvider provider = resolveProvider();
         UUID facilityId = provider.getFacility().getId();
 
-        List<Patient> activePatients = patientRepository.findByFacilityIdAndIsActiveTrue(facilityId);
+        List<Patient> activePatients = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED");
         Set<UUID> activePatientIds = activePatients.stream()
                 .map(Patient::getId).collect(Collectors.toSet());
 
@@ -83,7 +83,7 @@ public class FacilityDashboardService {
         FacilityProvider provider = resolveProvider();
         UUID facilityId = provider.getFacility().getId();
 
-        List<Patient> patients = patientRepository.findByFacilityIdAndIsActiveTrue(facilityId);
+        List<Patient> patients = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED");
 
         // Build a patientId → latest risk score map in one query
         Map<UUID, AiRiskScore> riskByPatient = aiRiskScoreRepository

@@ -41,4 +41,13 @@ public interface ConfirmationLogRepository extends JpaRepository<ConfirmationLog
     long countMissedByFacilityAndDate(
             @Param("facilityId") UUID facilityId,
             @Param("date") LocalDate date);
+
+    /**
+     * Every distinct (patient, plan, day) combination that has at least one
+     * confirmation/missed-dose log — used to backfill medication_records for
+     * history that predates MedicationRecordService being wired in.
+     */
+    @Query("SELECT DISTINCT cl.patient.id, cl.plan.id, cl.scheduledDate FROM ConfirmationLog cl " +
+           "WHERE cl.plan IS NOT NULL")
+    List<Object[]> findDistinctPatientPlanDateCombos();
 }

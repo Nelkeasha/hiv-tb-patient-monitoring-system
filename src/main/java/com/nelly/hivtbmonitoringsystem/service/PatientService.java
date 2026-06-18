@@ -316,7 +316,7 @@ public class PatientService {
     }
 
     public List<PatientResponse> getAllActivePatients() {
-        return patientRepository.findAllByIsActiveTrue()
+        return patientRepository.findByIsActiveTrueAndRegistrationStatus("CONFIRMED")
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 

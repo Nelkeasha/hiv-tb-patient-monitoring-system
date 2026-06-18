@@ -10,7 +10,7 @@ import java.time.LocalDate;
 public class ConfirmReferralRequest {
 
     @NotNull
-    private LocalDate appointmentDate;
+    private LocalDate facilityAppointmentDate;
 
     private String providerNotes;
 

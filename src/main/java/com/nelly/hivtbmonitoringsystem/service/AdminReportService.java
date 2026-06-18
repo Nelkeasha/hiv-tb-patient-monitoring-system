@@ -43,7 +43,7 @@ public class AdminReportService {
                 .filter(f -> Boolean.TRUE.equals(f.getIsActive())).count();
 
         // ── Patients ──────────────────────────────────────────────────────────
-        List<Patient> activePatients = patientRepository.findAllByIsActiveTrue();
+        List<Patient> activePatients = patientRepository.findByIsActiveTrueAndRegistrationStatus("CONFIRMED");
         long hivOnly = countDiagnosis(activePatients, DiagnosisType.HIV);
         long tbOnly  = countDiagnosis(activePatients, DiagnosisType.TB);
         long hivTb   = countDiagnosis(activePatients, DiagnosisType.HIV_TB_COINFECTION);
