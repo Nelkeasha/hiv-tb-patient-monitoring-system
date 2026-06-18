@@ -132,7 +132,7 @@ public class PatientService {
                 .chw(chw)
                 .facility(chw.getFacility())
                 .registrationRoute("FACILITY")
-                .registrationStatus("ACTIVE")
+                .registrationStatus("CONFIRMED")
                 .confirmedBy(currentUser.getId())
                 .confirmedAt(LocalDateTime.now())
                 .syncStatus(SyncStatus.PENDING)
@@ -176,10 +176,10 @@ public class PatientService {
 
         if (!"PROVISIONAL".equals(patient.getRegistrationStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Patient is already ACTIVE — cannot confirm again");
+                    "Patient is already CONFIRMED — cannot confirm again");
         }
 
-        patient.setRegistrationStatus("ACTIVE");
+        patient.setRegistrationStatus("CONFIRMED");
         patient.setDiagnosisType(req.getDiagnosisType());
         if (req.getArtStartDate() != null)          patient.setArtStartDate(req.getArtStartDate());
         if (req.getTbTreatmentStartDate() != null)  patient.setTbTreatmentStartDate(req.getTbTreatmentStartDate());
@@ -252,7 +252,7 @@ public class PatientService {
             patientCode = generatePatientCode();
         }
         if (req.getNationalId() != null && patientRepository.existsByNationalId(req.getNationalId())) {
-            throw new RuntimeException("National ID already registered: " + req.getNationalId());
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "National ID already registered: " + req.getNationalId());
         }
 
         DiagnosisType diagnosisType = req.getDiagnosisType();
@@ -357,7 +357,8 @@ public class PatientService {
             throw new RuntimeException("Access denied: patient not assigned to you");
         }
 
-        if (req.getFullName() != null)          patient.setFullName(req.getFullName());
+        if (req.getFullName() != null && !req.getFullName().isBlank())
+                                                patient.setFullName(req.getFullName().trim());
         if (req.getPhoneNumber() != null)       patient.setPhoneNumber(req.getPhoneNumber());
         if (req.getHasSmartphone() != null)     patient.setHasSmartphone(req.getHasSmartphone());
         if (req.getHouseholdLocation() != null) patient.setHouseholdLocation(req.getHouseholdLocation());

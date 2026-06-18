@@ -22,6 +22,8 @@ public class RegisterPatientRequest {
     private LocalDate dateOfBirth;
 
     @NotBlank
+    @jakarta.validation.constraints.Pattern(regexp = "MALE|FEMALE|OTHER",
+             message = "Sex must be MALE, FEMALE, or OTHER")
     private String sex;
 
     private String nationalId;

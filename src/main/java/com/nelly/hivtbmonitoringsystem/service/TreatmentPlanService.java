@@ -10,6 +10,7 @@ import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.entity.TreatmentPlan;
+import com.nelly.hivtbmonitoringsystem.enums.ConfirmationChannel;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,6 +38,7 @@ public class TreatmentPlanService {
     private final PatientRepository patientRepository;
     private final SystemUserRepository systemUserRepository;
     private final ChwRepository chwRepository;
+    private final SystemSettingsService systemSettingsService;
 
     // ── Clinical staff writes ─────────────────────────────────────────────────
 
@@ -45,6 +48,11 @@ public class TreatmentPlanService {
 
         Patient patient = patientRepository.findById(req.getPatientId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        if (req.getEndDate() != null && !req.getEndDate().isAfter(req.getStartDate())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "End date must be after start date");
+        }
 
         TreatmentPlan plan = TreatmentPlan.builder()
                 .patient(patient)
@@ -58,7 +66,21 @@ public class TreatmentPlanService {
                 .createdBy(currentUser)
                 .build();
 
-        return toResponse(treatmentPlanRepository.save(plan));
+        plan = treatmentPlanRepository.save(plan);
+
+        if (req.getDoseTimes() != null && !req.getDoseTimes().isEmpty()) {
+            ConfirmationChannel method = Boolean.TRUE.equals(patient.getHasSmartphone())
+                    ? ConfirmationChannel.APP : ConfirmationChannel.SMS;
+            int windowMinutes = systemSettingsService.get().getConfirmWindowMinutes();
+
+            int i = 1;
+            for (LocalTime doseTime : req.getDoseTimes()) {
+                buildAndSaveSchedule(plan, patient, doseTime, "Dose " + i, method, windowMinutes, null, currentUser);
+                i++;
+            }
+        }
+
+        return toResponse(plan);
     }
 
     @Transactional
@@ -85,19 +107,31 @@ public class TreatmentPlanService {
         TreatmentPlan plan = findPlan(planId);
         SystemUser currentUser = resolveCurrentUser();
 
+        DoseSchedule schedule = buildAndSaveSchedule(plan, plan.getPatient(), req.getDoseTime(),
+                req.getDoseLabel(), req.getNotificationMethod(), req.getWindowDurationMinutes(),
+                req.getPrescriptionSource(), currentUser);
+
+        return toScheduleResponse(schedule);
+    }
+
+    /** Shared by the manual addSchedule endpoint and createPlan's auto-generation from doseTimes. */
+    private DoseSchedule buildAndSaveSchedule(TreatmentPlan plan, Patient patient, LocalTime doseTime,
+                                               String doseLabel, ConfirmationChannel notificationMethod,
+                                               Integer windowDurationMinutes, String prescriptionSource,
+                                               SystemUser currentUser) {
         DoseSchedule schedule = DoseSchedule.builder()
                 .plan(plan)
-                .patient(plan.getPatient())
-                .doseTime(req.getDoseTime())
-                .doseLabel(req.getDoseLabel())
-                .notificationMethod(req.getNotificationMethod())
-                .windowDurationMinutes(req.getWindowDurationMinutes())
+                .patient(patient)
+                .doseTime(doseTime)
+                .doseLabel(doseLabel)
+                .notificationMethod(notificationMethod)
+                .windowDurationMinutes(windowDurationMinutes)
                 .isActive(true)
                 .createdBy(currentUser)
-                .prescriptionSource(req.getPrescriptionSource())
+                .prescriptionSource(prescriptionSource)
                 .build();
 
-        return toScheduleResponse(doseScheduleRepository.save(schedule));
+        return doseScheduleRepository.save(schedule);
     }
 
     @Transactional

@@ -21,6 +21,8 @@ public class ScreenPatientRequest {
     private LocalDate dateOfBirth;
 
     @JsonAlias("gender")
+    @jakarta.validation.constraints.Pattern(regexp = "MALE|FEMALE|OTHER|UNKNOWN",
+             message = "Sex must be MALE, FEMALE, OTHER, or UNKNOWN")
     private String sex;
 
     private String phoneNumber;

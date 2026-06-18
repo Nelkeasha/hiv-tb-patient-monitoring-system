@@ -4,6 +4,22 @@ password: Admin@2026
 #CHW
 "email": "jean@hivtb.rw",
 "password": "Jean@2026"
+"email": "chw1@hivtb.rw",
+"password": "Alice@2026"
+
+## Patients
+p1[
+"email":pt-bd5c2489@hivtb.rw
+"password":Mary@2026
+]
+p2[
+"email":pt-bd5c2489@hivtb.rw
+"password":Mary@2026
+]
+p3[
+"email":pt-bd5c2489@hivtb.rw
+"password":Mary@2026
+]
 
 "Missed dose marking is fully automatic. 
 A Spring Boot scheduled job runs at window_close_time for each active confirmation_logs record. 
@@ -13,4 +29,6 @@ Host: dpg-d8dbsq4m0tmc73dpb0vg-a
 Port: 5432
 Database: hivtb_db
 Username: hivtb_db_user
-Password: 6gEdOnNADgsu0IxwneyaLe7OHNasfXJR
+Password: 6gEdOnNADgsu0IxwneyaLe7OHNasfXJ
+
+

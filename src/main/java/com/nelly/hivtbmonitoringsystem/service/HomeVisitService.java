@@ -13,8 +13,10 @@ import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,11 +35,27 @@ public class HomeVisitService {
 
     @Transactional
     public HomeVisitResponse recordVisit(RecordVisitRequest req) {
+        if (req.getClientRequestId() != null) {
+            Optional<HomeVisit> existing = visitRepository.findByClientRequestId(req.getClientRequestId());
+            if (existing.isPresent()) {
+                return toResponse(existing.get()); // retried offline-queue flush — safe no-op
+            }
+        }
+
         Chw chw = resolveCurrentChw();
         Patient patient = patientRepository.findById(req.getPatientId())
                 .orElseThrow(() -> new RuntimeException("Patient not found: " + req.getPatientId()));
         if (!patient.getChw().getId().equals(chw.getId())) {
             throw new RuntimeException("Access denied: patient not assigned to you");
+        }
+
+        boolean hasObservation =
+                (req.getSymptomsReported()     != null && !req.getSymptomsReported().isBlank()) ||
+                (req.getSideEffectsReported()  != null && !req.getSideEffectsReported().isBlank()) ||
+                (req.getPsychosocialNotes()    != null && !req.getPsychosocialNotes().isBlank());
+        if (!hasObservation) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "You must record at least one clinical observation before saving the visit.");
         }
 
         boolean discrepancy = false;
@@ -49,6 +67,7 @@ public class HomeVisitService {
                 .patient(patient)
                 .chw(chw)
                 .visitDate(req.getVisitDate())
+                .visitStatus("ATTENDED_TO")
                 .adherenceStatus(req.getAdherenceStatus())
                 .pillCountRecorded(req.getPillCountRecorded())
                 .pillCountExpected(req.getPillCountExpected())
@@ -57,6 +76,7 @@ public class HomeVisitService {
                 .sideEffectsReported(req.getSideEffectsReported())
                 .psychosocialNotes(req.getPsychosocialNotes())
                 .nextVisitDate(req.getNextVisitDate())
+                .clientRequestId(req.getClientRequestId())
                 .syncStatus(SyncStatus.PENDING)
                 .build();
 
@@ -118,6 +138,7 @@ public class HomeVisitService {
                 .chwId(v.getChw().getId())
                 .chwName(v.getChw().getUser().getFullName())
                 .visitDate(v.getVisitDate())
+                .visitStatus(v.getVisitStatus() != null ? v.getVisitStatus() : "ATTENDED_TO")
                 .adherenceStatus(v.getAdherenceStatus())
                 .pillCountRecorded(v.getPillCountRecorded())
                 .pillCountExpected(v.getPillCountExpected())

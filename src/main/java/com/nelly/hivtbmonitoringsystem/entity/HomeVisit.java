@@ -54,8 +54,15 @@ public class HomeVisit {
     @Column(name = "next_visit_date")
     private LocalDateTime nextVisitDate;
 
+    @Column(name = "visit_status", length = 20, nullable = false)
+    private String visitStatus = "ATTENDED_TO";
+
     @Column(name = "fhir_observation_id", length = 100)
     private String fhirObservationId;
+
+    /** Set by the mobile app's offline outbox so a retried queue-flush can't create a duplicate visit. */
+    @Column(name = "client_request_id")
+    private UUID clientRequestId;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)

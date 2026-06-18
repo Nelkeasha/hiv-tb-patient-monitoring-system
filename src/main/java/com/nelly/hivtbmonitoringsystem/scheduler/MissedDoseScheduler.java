@@ -5,6 +5,7 @@ import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.repository.ConfirmationLogRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
 import com.nelly.hivtbmonitoringsystem.service.AlertService;
+import com.nelly.hivtbmonitoringsystem.service.MedicationRecordService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +25,7 @@ public class MissedDoseScheduler {
     private final DoseScheduleRepository doseScheduleRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
     private final AlertService alertService;
+    private final MedicationRecordService medicationRecordService;
 
     /**
      * Runs every minute. For each active dose schedule whose window has closed today,
@@ -65,6 +67,7 @@ public class MissedDoseScheduler {
                         .build();
                 confirmationLogRepository.save(missed);
                 alertService.createMissedDoseAlert(schedule.getPatient(), schedule.getPlan());
+                medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 log.info("Missed dose auto-recorded: patient={} schedule={}",
                         schedule.getPatient().getId(), schedule.getId());
 
@@ -74,6 +77,7 @@ public class MissedDoseScheduler {
                     entry.setIsMissed(true);
                     confirmationLogRepository.save(entry);
                     alertService.createMissedDoseAlert(schedule.getPatient(), schedule.getPlan());
+                    medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 }
             }
         }

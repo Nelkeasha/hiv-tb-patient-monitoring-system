@@ -28,6 +28,8 @@ public class PatientConfirmationService {
     private final PatientRepository patientRepository;
     private final SystemUserRepository systemUserRepository;
     private final ChwRepository chwRepository;
+    private final AiConfirmationAnalysisService aiConfirmationAnalysisService;
+    private final MedicationRecordService medicationRecordService;
 
     @Transactional
     public ConfirmationLogResponse submitConfirmation(SubmitConfirmationRequest req) {
@@ -84,7 +86,22 @@ public class PatientConfirmationService {
         log.setAiSuspicionFlag(suspicious);
         log.setSuspicionReason(suspicionReason);
 
-        return toResponse(confirmationLogRepository.save(log));
+        ConfirmationLog saved = confirmationLogRepository.save(log);
+
+        medicationRecordService.recalculate(patient.getId(), schedule.getPlan().getId(), today);
+
+        aiConfirmationAnalysisService.analyze(
+                saved.getId(),
+                patient.getId(),
+                patient.getFullName(),
+                patient.getChw() != null ? patient.getChw().getId() : null,
+                schedule.getId(),
+                saved.getResponseTimeSeconds(),
+                saved.getConfirmedAt(),
+                saved.getWindowOpenTime(),
+                saved.getWindowCloseTime());
+
+        return toResponse(saved);
     }
 
     public List<ConfirmationLogResponse> getMyHistory() {

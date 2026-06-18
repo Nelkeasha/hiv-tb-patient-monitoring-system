@@ -11,6 +11,7 @@ import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,6 +30,7 @@ public class AlertService {
     private final ChwRepository chwRepository;
     private final FacilityProviderRepository facilityProviderRepository;
     private final SystemUserRepository systemUserRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // ── CHW ──────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,19 @@ public class AlertService {
         return toResponse(alertRepository.save(alert));
     }
 
+    private void broadcast(Alert saved) {
+        messagingTemplate.convertAndSend("/topic/alerts", toResponse(saved));
+    }
+
+    /**
+     * Relays an alert already persisted by the AI microservice (which writes directly
+     * to the shared database and has no WebSocket session of its own) onto the
+     * live /topic/alerts feed, without inserting a duplicate row.
+     */
+    public void broadcastExternalAlert(AlertResponse response) {
+        messagingTemplate.convertAndSend("/topic/alerts", response);
+    }
+
     // ── Internal — called by AI microservice (SYSTEM_ADMIN) ──────────────────
 
     @Transactional
@@ -107,7 +122,9 @@ public class AlertService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider not found")));
         }
 
-        return toResponse(alertRepository.save(builder.build()));
+        Alert saved = alertRepository.save(builder.build());
+        broadcast(saved);
+        return toResponse(saved);
     }
 
     // ── Called internally by MissedDoseScheduler ─────────────────────────────
@@ -127,7 +144,7 @@ public class AlertService {
                 .isRead(false)
                 .isResolved(false)
                 .build();
-        alertRepository.save(alert);
+        broadcast(alertRepository.save(alert));
     }
 
     // ── Called internally by TracingTaskService ──────────────────────────────
@@ -148,7 +165,7 @@ public class AlertService {
                 .isRead(false)
                 .isResolved(false)
                 .build();
-        alertRepository.save(alert);
+        broadcast(alertRepository.save(alert));
     }
 
     @Transactional
@@ -169,7 +186,7 @@ public class AlertService {
                 .isRead(false)
                 .isResolved(false)
                 .build();
-        alertRepository.save(alert);
+        broadcast(alertRepository.save(alert));
     }
 
     @Transactional
@@ -188,7 +205,7 @@ public class AlertService {
                 .isRead(false)
                 .isResolved(false)
                 .build();
-        alertRepository.save(alert);
+        broadcast(alertRepository.save(alert));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

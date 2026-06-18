@@ -64,7 +64,7 @@ public class ConfirmationLog {
     @Column(name = "ai_suspicion_flag")
     private Boolean aiSuspicionFlag = false;
 
-    @Column(name = "suspicion_reason", length = 100)
+    @Column(name = "suspicion_reason", length = 500)
     private String suspicionReason;
 
     @Column(name = "created_at", updatable = false)

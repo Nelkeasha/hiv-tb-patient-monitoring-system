@@ -17,6 +17,7 @@ public class HomeVisitResponse {
     private UUID chwId;
     private String chwName;
     private LocalDateTime visitDate;
+    private String visitStatus;
     private String adherenceStatus;
     private Integer pillCountRecorded;
     private Integer pillCountExpected;

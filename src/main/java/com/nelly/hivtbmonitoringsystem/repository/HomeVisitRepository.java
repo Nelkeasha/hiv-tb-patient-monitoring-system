@@ -9,13 +9,16 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface HomeVisitRepository extends JpaRepository<HomeVisit, UUID> {
     List<HomeVisit> findByPatientId(UUID patientId);
+    Optional<HomeVisit> findByClientRequestId(UUID clientRequestId);
     List<HomeVisit> findByChwId(UUID chwId);
     List<HomeVisit> findByPatientIdOrderByVisitDateDesc(UUID patientId);
+    List<HomeVisit> findByPatientIdAndVisitDateBetween(UUID patientId, LocalDateTime from, LocalDateTime to);
     List<HomeVisit> findByChwIdAndVisitDateBetween(UUID chwId, LocalDateTime from, LocalDateTime to);
     long countByPatientIdAndVisitDateAfter(UUID patientId, LocalDateTime after);
     long countByChwIdAndVisitDateAfter(UUID chwId, LocalDateTime after);

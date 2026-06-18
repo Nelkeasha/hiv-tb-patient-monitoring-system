@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
 @Getter @Setter
@@ -27,4 +29,7 @@ public class CreateTreatmentPlanRequest {
     private LocalDate startDate;
 
     private LocalDate endDate;
+
+    /** Optional — if provided, one DoseSchedule is auto-created per entry. */
+    private List<LocalTime> doseTimes;
 }

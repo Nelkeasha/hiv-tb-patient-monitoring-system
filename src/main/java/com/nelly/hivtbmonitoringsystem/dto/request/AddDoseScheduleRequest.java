@@ -17,6 +17,7 @@ public class AddDoseScheduleRequest {
 
     private ConfirmationChannel notificationMethod = ConfirmationChannel.APP;
 
+    @jakarta.validation.constraints.Min(value = 1, message = "Window duration must be at least 1 minute")
     private Integer windowDurationMinutes = 45;
 
     private String prescriptionSource;

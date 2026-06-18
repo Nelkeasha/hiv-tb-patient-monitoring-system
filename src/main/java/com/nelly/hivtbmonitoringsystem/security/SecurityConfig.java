@@ -63,6 +63,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers("/health").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
 
                         // ── Everything else — valid JWT required ──────────
                         .anyRequest().authenticated()
