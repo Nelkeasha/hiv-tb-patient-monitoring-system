@@ -113,6 +113,17 @@ public class PatientService {
         Chw chw = chwRepository.findById(req.getAssignedChwId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
 
+        if (req.getNationalId() != null && !req.getNationalId().isBlank()
+                && patientRepository.existsByNationalId(req.getNationalId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "A patient with this National ID is already registered");
+        }
+        if (Boolean.TRUE.equals(req.getHasSmartphone()) && req.getPhoneNumber() != null
+                && userRepository.existsByPhoneNumber(req.getPhoneNumber())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This phone number is already linked to another account");
+        }
+
         String patientCode = generatePatientCode();
 
         Patient patient = Patient.builder()

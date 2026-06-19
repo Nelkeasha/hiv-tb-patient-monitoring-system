@@ -3,11 +3,16 @@ package com.nelly.hivtbmonitoringsystem.controller;
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.service.FacilityDashboardService;
 import com.nelly.hivtbmonitoringsystem.service.FacilityReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.ClinicalPdfReportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +24,7 @@ public class FacilityDashboardController {
 
     private final FacilityDashboardService dashboardService;
     private final FacilityReportService reportService;
+    private final ClinicalPdfReportService pdfReportService;
 
     /** Facility-level summary: patient counts, CHW count, risk distribution, adherence average. */
     @GetMapping("/stats")
@@ -61,5 +67,18 @@ public class FacilityDashboardController {
     @GetMapping("/adherence/trend")
     public ResponseEntity<List<DailyTrendPoint>> getAdherenceTrend() {
         return ResponseEntity.ok(dashboardService.getAdherenceTrend());
+    }
+
+    /** Official facility report as a printable PDF document. */
+    @GetMapping("/reports/summary/pdf")
+    public ResponseEntity<byte[]> downloadReportPdf() {
+        FacilityReportResponse report = reportService.generateSummary();
+        byte[] pdf = pdfReportService.generate(report);
+        String filename = "facility-report-" + report.getGeneratedAt().format(DateTimeFormatter.ISO_LOCAL_DATE) + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(filename).build().toString())
+                .body(pdf);
     }
 }
