@@ -8,12 +8,14 @@ import com.nelly.hivtbmonitoringsystem.dto.request.UpdatePatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.ProvisionalPatientResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
+import com.nelly.hivtbmonitoringsystem.entity.FacilityProvider;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
+import com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
@@ -37,6 +39,7 @@ public class PatientService {
     private final PatientRepository patientRepository;
     private final SystemUserRepository userRepository;
     private final ChwRepository chwRepository;
+    private final FacilityProviderRepository facilityProviderRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
@@ -320,8 +323,16 @@ public class PatientService {
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 
+    /** Clinical/facility staff see only their own facility's provisional patients; admins see system-wide. */
     public List<PatientResponse> getProvisionalPatients() {
-        return patientRepository.findByRegistrationStatus("PROVISIONAL")
+        SystemUser currentUser = resolveCurrentUser();
+        if (currentUser.getRole() == UserRole.ADMIN || currentUser.getRole() == UserRole.SYSTEM_ADMIN) {
+            return patientRepository.findByRegistrationStatus("PROVISIONAL")
+                    .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
+        }
+        FacilityProvider provider = facilityProviderRepository.findByUserId(currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Facility provider profile not found"));
+        return patientRepository.findByFacilityIdAndRegistrationStatus(provider.getFacility().getId(), "PROVISIONAL")
                 .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 

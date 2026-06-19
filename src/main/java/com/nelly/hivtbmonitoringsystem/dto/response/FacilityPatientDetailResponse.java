@@ -24,6 +24,11 @@ public class FacilityPatientDetailResponse {
     private String village;
     private String district;
     private Boolean isActive;
+    private String registrationStatus;
+    private String referralId;
+    private String suspectedCondition;
+    private String screeningNotes;
+    private java.time.LocalDateTime confirmedAt;
     private String chwName;
     private AiRiskScoreResponse latestRiskScore;
     private List<AlertResponse> unresolvedAlerts;

@@ -31,4 +31,5 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findAllByIsActiveTrue();
     List<Patient> findByIsActiveTrueAndRegistrationStatus(String registrationStatus);
     List<Patient> findByRegistrationStatus(String registrationStatus);
+    List<Patient> findByFacilityIdAndRegistrationStatus(UUID facilityId, String registrationStatus);
 }

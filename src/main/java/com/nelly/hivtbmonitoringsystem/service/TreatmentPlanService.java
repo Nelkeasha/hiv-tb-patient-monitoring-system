@@ -49,6 +49,11 @@ public class TreatmentPlanService {
         Patient patient = patientRepository.findById(req.getPatientId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
 
+        if (!"CONFIRMED".equals(patient.getRegistrationStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Patient must be clinically confirmed before a treatment plan can be created");
+        }
+
         if (req.getEndDate() != null && !req.getEndDate().isAfter(req.getStartDate())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "End date must be after start date");
