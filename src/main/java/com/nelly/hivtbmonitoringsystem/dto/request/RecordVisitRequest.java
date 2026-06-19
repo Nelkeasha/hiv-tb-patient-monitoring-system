@@ -20,8 +20,8 @@ public class RecordVisitRequest {
     private LocalDateTime visitDate;
 
     @NotNull(message = "Adherence status is required")
-    @Pattern(regexp = "ADHERING|NON_ADHERING|PARTIAL",
-             message = "Adherence status must be ADHERING, NON_ADHERING, or PARTIAL")
+    @Pattern(regexp = "GOOD|PARTIAL|POOR|MISSED",
+             message = "Adherence status must be GOOD, PARTIAL, POOR, or MISSED")
     private String adherenceStatus;
 
     @Min(value = 0, message = "Pill count recorded cannot be negative")

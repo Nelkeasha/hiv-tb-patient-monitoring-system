@@ -24,6 +24,7 @@ public interface HomeVisitRepository extends JpaRepository<HomeVisit, UUID> {
     long countByChwIdAndVisitDateAfter(UUID chwId, LocalDateTime after);
     List<HomeVisit> findByChwIdOrderByVisitDateDesc(UUID chwId);
     List<HomeVisit> findByChwIdAndSyncStatus(UUID chwId, SyncStatus syncStatus);
+    long countBySyncStatus(SyncStatus syncStatus);
 
     @Query("SELECT COUNT(hv) FROM HomeVisit hv WHERE hv.chw.facility.id = :facilityId AND hv.syncStatus = :status")
     long countByFacilityIdAndSyncStatus(@Param("facilityId") UUID facilityId, @Param("status") SyncStatus status);

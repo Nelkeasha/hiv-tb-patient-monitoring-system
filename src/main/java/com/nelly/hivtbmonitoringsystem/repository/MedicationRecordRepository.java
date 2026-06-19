@@ -33,4 +33,6 @@ public interface MedicationRecordRepository extends JpaRepository<MedicationReco
     @Query("SELECT COUNT(mr) FROM MedicationRecord mr WHERE mr.patient.facility.id = :facilityId AND mr.syncStatus = :status")
     long countByFacilityIdAndSyncStatus(@Param("facilityId") UUID facilityId,
                                          @Param("status") com.nelly.hivtbmonitoringsystem.enums.SyncStatus status);
+
+    long countBySyncStatus(com.nelly.hivtbmonitoringsystem.enums.SyncStatus status);
 }

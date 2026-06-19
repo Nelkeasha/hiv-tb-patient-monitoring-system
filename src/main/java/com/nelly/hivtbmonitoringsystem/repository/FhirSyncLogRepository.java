@@ -15,6 +15,7 @@ import java.util.UUID;
 public interface FhirSyncLogRepository extends JpaRepository<FhirSyncLog, UUID> {
     List<FhirSyncLog> findByChwId(UUID chwId);
     List<FhirSyncLog> findByChwIdOrderBySyncStartedAtDesc(UUID chwId);
+    List<FhirSyncLog> findAllByOrderBySyncStartedAtDesc();
 
     @Query("SELECT MAX(l.syncCompletedAt) FROM FhirSyncLog l " +
            "WHERE l.chw.facility.id = :facilityId AND l.syncStatus = 'COMPLETED'")

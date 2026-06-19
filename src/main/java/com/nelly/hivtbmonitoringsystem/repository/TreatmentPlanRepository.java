@@ -26,4 +26,6 @@ public interface TreatmentPlanRepository extends JpaRepository<TreatmentPlan, UU
     @Query("SELECT COUNT(tp) FROM TreatmentPlan tp WHERE tp.patient.facility.id = :facilityId AND tp.syncStatus = :status")
     long countByFacilityIdAndSyncStatus(@Param("facilityId") UUID facilityId,
                                          @Param("status") com.nelly.hivtbmonitoringsystem.enums.SyncStatus status);
+
+    long countBySyncStatus(com.nelly.hivtbmonitoringsystem.enums.SyncStatus status);
 }

@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.dto.request.CompleteSyncRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
+import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,14 +33,20 @@ public class FhirSyncService {
 
     // ── CHW-facing ────────────────────────────────────────────────────────────
 
+    /** ADMIN/SYSTEM_ADMIN have no Chw profile — they get a system-wide view instead of "my own". */
     public SyncPendingResponse getPendingCounts() {
-        Chw chw = resolveChw();
+        SystemUser user = resolveCurrentUser();
+        if (isAdmin(user)) return buildPendingResponseSystemWide();
+        Chw chw = resolveChw(user);
         return buildPendingResponse(chw.getId());
     }
 
     @Transactional
     public SyncTriggerResponse triggerSync() {
-        Chw chw = resolveChw();
+        SystemUser user = resolveCurrentUser();
+        if (isAdmin(user)) return triggerSyncSystemWide();
+
+        Chw chw = resolveChw(user);
         UUID chwId = chw.getId();
 
         int pp  = patientRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
@@ -69,17 +76,25 @@ public class FhirSyncService {
     }
 
     public List<FhirSyncLogResponse> getSyncHistory() {
-        Chw chw = resolveChw();
+        SystemUser user = resolveCurrentUser();
+        if (isAdmin(user)) {
+            return fhirSyncLogRepository.findAllByOrderBySyncStartedAtDesc()
+                    .stream().map(this::toLogResponse).toList();
+        }
+        Chw chw = resolveChw(user);
         return fhirSyncLogRepository.findByChwIdOrderBySyncStartedAtDesc(chw.getId())
                 .stream().map(this::toLogResponse).toList();
     }
 
     public FhirSyncLogResponse getSyncLog(UUID logId) {
-        Chw chw = resolveChw();
+        SystemUser user = resolveCurrentUser();
         FhirSyncLog log = fhirSyncLogRepository.findById(logId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sync log not found"));
-        if (log.getChw() == null || !log.getChw().getId().equals(chw.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        if (!isAdmin(user)) {
+            Chw chw = resolveChw(user);
+            if (log.getChw() == null || !log.getChw().getId().equals(chw.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+            }
         }
         return toLogResponse(log);
     }
@@ -192,10 +207,58 @@ public class FhirSyncService {
                 .build();
     }
 
-    private Chw resolveChw() {
+    private SyncPendingResponse buildPendingResponseSystemWide() {
+        long pp  = patientRepository.countBySyncStatus(SyncStatus.PENDING);
+        long phv = homeVisitRepository.countBySyncStatus(SyncStatus.PENDING);
+        long pmr = medicationRecordRepository.countBySyncStatus(SyncStatus.PENDING);
+        long ptp = treatmentPlanRepository.countBySyncStatus(SyncStatus.PENDING);
+        return SyncPendingResponse.builder()
+                .pendingPatients((int) pp)
+                .pendingHomeVisits((int) phv)
+                .pendingMedicationRecords((int) pmr)
+                .pendingTreatmentPlans((int) ptp)
+                .total((int) (pp + phv + pmr + ptp))
+                .build();
+    }
+
+    private SyncTriggerResponse triggerSyncSystemWide() {
+        long pp  = patientRepository.countBySyncStatus(SyncStatus.PENDING);
+        long phv = homeVisitRepository.countBySyncStatus(SyncStatus.PENDING);
+        long pmr = medicationRecordRepository.countBySyncStatus(SyncStatus.PENDING);
+        long ptp = treatmentPlanRepository.countBySyncStatus(SyncStatus.PENDING);
+
+        FhirSyncLog log = FhirSyncLog.builder()
+                .chw(null)
+                .syncStartedAt(LocalDateTime.now())
+                .recordsSynced(0)
+                .recordsFailed(0)
+                .syncStatus("IN_PROGRESS")
+                .build();
+        log = fhirSyncLogRepository.save(log);
+
+        return SyncTriggerResponse.builder()
+                .logId(log.getId())
+                .syncStatus("IN_PROGRESS")
+                .pendingPatients((int) pp)
+                .pendingHomeVisits((int) phv)
+                .pendingMedicationRecords((int) pmr)
+                .pendingTreatmentPlans((int) ptp)
+                .totalQueued((int) (pp + phv + pmr + ptp))
+                .syncStartedAt(log.getSyncStartedAt())
+                .build();
+    }
+
+    private boolean isAdmin(SystemUser user) {
+        return user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.SYSTEM_ADMIN;
+    }
+
+    private SystemUser resolveCurrentUser() {
         String email = SecurityUtil.getCurrentUserEmail();
-        SystemUser user = systemUserRepository.findByEmail(email)
+        return systemUserRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+    }
+
+    private Chw resolveChw(SystemUser user) {
         return chwRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "CHW profile not found"));
