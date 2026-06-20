@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -14,5 +15,7 @@ public class GenerateTracingTaskRequest {
     @NotNull
     private LocalDate missedAppointmentDate;
     @NotBlank
-    private String reason; // MISSED_REFILL | MISSED_APPOINTMENT | LOST_TO_FOLLOWUP
+    @Pattern(regexp = "MISSED_REFILL|MISSED_APPOINTMENT|LOST_TO_FOLLOWUP",
+             message = "Reason must be one of: MISSED_REFILL, MISSED_APPOINTMENT, LOST_TO_FOLLOWUP")
+    private String reason;
 }

@@ -39,6 +39,7 @@ public class TreatmentPlanService {
     private final SystemUserRepository systemUserRepository;
     private final ChwRepository chwRepository;
     private final SystemSettingsService systemSettingsService;
+    private final AuditLogService auditLogService;
 
     // ── Clinical staff writes ─────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ public class TreatmentPlanService {
                 .build();
 
         plan = treatmentPlanRepository.save(plan);
+        auditLogService.log("CREATE_TREATMENT_PLAN", "treatment_plans", plan.getId());
 
         if (req.getDoseTimes() != null && !req.getDoseTimes().isEmpty()) {
             ConfirmationChannel method = Boolean.TRUE.equals(patient.getHasSmartphone())
@@ -104,7 +106,9 @@ public class TreatmentPlanService {
             }
         }
 
-        return toResponse(treatmentPlanRepository.save(plan));
+        TreatmentPlan saved = treatmentPlanRepository.save(plan);
+        auditLogService.log("UPDATE_TREATMENT_PLAN", "treatment_plans", saved.getId());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -115,6 +119,7 @@ public class TreatmentPlanService {
         DoseSchedule schedule = buildAndSaveSchedule(plan, plan.getPatient(), req.getDoseTime(),
                 req.getDoseLabel(), req.getNotificationMethod(), req.getWindowDurationMinutes(),
                 req.getPrescriptionSource(), currentUser);
+        auditLogService.log("ADD_DOSE_SCHEDULE", "dose_schedules", schedule.getId());
 
         return toScheduleResponse(schedule);
     }
@@ -144,7 +149,9 @@ public class TreatmentPlanService {
         DoseSchedule schedule = doseScheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Schedule not found"));
         schedule.setIsActive(false);
-        return toScheduleResponse(doseScheduleRepository.save(schedule));
+        DoseSchedule saved = doseScheduleRepository.save(schedule);
+        auditLogService.log("DEACTIVATE_DOSE_SCHEDULE", "dose_schedules", saved.getId());
+        return toScheduleResponse(saved);
     }
 
     // ── Shared reads (CHW sees own patients only; clinical sees all) ──────────

@@ -43,8 +43,20 @@ public class SupervisorCsvReportService {
     /** RFC 4180 field escaping: quote if the value contains a comma, quote, or newline. */
     private String csv(String value) {
         if (value == null) return "";
-        boolean needsQuoting = value.contains(",") || value.contains("\"") || value.contains("\n");
-        String escaped = value.replace("\"", "\"\"");
-        return needsQuoting ? "\"" + escaped + "\"" : escaped;
+        String safe = neutralizeFormula(value);
+        boolean needsQuoting = safe.contains(",") || safe.contains("\"") || safe.contains("\n");
+        return needsQuoting ? "\"" + safe.replace("\"", "\"\"") + "\"" : safe;
+    }
+
+    /**
+     * Prefixes values that start with =, +, -, or @ with a single quote so spreadsheet
+     * apps (Excel, Sheets) display them as text instead of executing them as formulas.
+     * See OWASP CSV Injection guidance.
+     */
+    private String neutralizeFormula(String value) {
+        if (!value.isEmpty() && "=+-@".indexOf(value.charAt(0)) >= 0) {
+            return "'" + value;
+        }
+        return value;
     }
 }

@@ -41,6 +41,7 @@ public class MedicationRecordService {
     private final HomeVisitRepository homeVisitRepository;
     private final PatientRepository patientRepository;
     private final TreatmentPlanRepository treatmentPlanRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public void recalculate(UUID patientId, UUID planId, LocalDate day) {
@@ -109,6 +110,8 @@ public class MedicationRecordService {
             LocalDate day = (LocalDate) row[2];
             recalculate(patientId, planId, day);
         }
+        auditLogService.log("MEDICATION_RECORD_BACKFILL", "medication_records", null,
+                "{\"recordsProcessed\":" + combos.size() + "}", null);
         return combos.size();
     }
 }

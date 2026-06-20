@@ -101,6 +101,11 @@ public class SmsConfirmationService {
         LocalDateTime confirmedAt = LocalDateTime.now();
 
         boolean isWithinWindow = !confirmedAt.isBefore(windowOpen) && !confirmedAt.isAfter(windowClose);
+        if (!isWithinWindow) {
+            // A "YES" arriving after the confirmation window has closed is still a missed dose.
+            return recordMissed(patient, schedule, today, rawReply);
+        }
+
         int responseTimeSec = (int) Duration.between(windowOpen, confirmedAt).abs().getSeconds();
 
         ConfirmationLog entry = ConfirmationLog.builder()
@@ -114,14 +119,14 @@ public class SmsConfirmationService {
                 .responseTimeSeconds(responseTimeSec)
                 .confirmationMethod(ConfirmationChannel.SMS)
                 .rawSmsResponse(rawReply)
-                .isWithinWindow(isWithinWindow)
+                .isWithinWindow(true)
                 .isMissed(false)
                 .aiSuspicionFlag(false)
                 .build();
 
         confirmationLogRepository.save(entry);
         auditLogService.log("SMS_CONFIRMATION", "confirmation_logs", entry.getId());
-        log.info("SMS callback: dose confirmed for patient={} withinWindow={}", patient.getId(), isWithinWindow);
+        log.info("SMS callback: dose confirmed for patient={} withinWindow=true", patient.getId());
         return SmsResult.CONFIRMED;
     }
 

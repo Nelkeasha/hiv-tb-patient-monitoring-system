@@ -21,6 +21,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findByDiagnosisType(DiagnosisType diagnosisType);
     boolean existsByPatientCode(String patientCode);
     boolean existsByNationalId(String nationalId);
+    boolean existsByPhoneNumber(String phoneNumber);
     Optional<Patient> findByUserId(UUID userId);
     List<Patient> findByFacilityIdAndIsActiveTrue(UUID facilityId);
     /** "Active patient" for reports/dashboards means confirmed AND active — excludes PROVISIONAL screenings still awaiting confirmation. */
@@ -32,4 +33,5 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findByIsActiveTrueAndRegistrationStatus(String registrationStatus);
     List<Patient> findByRegistrationStatus(String registrationStatus);
     List<Patient> findByFacilityIdAndRegistrationStatus(UUID facilityId, String registrationStatus);
+    List<Patient> findByChwAssignmentStatus(String chwAssignmentStatus);
 }

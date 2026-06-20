@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateAlertRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ReportSyncFailureRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.AlertResponse;
 import com.nelly.hivtbmonitoringsystem.service.AlertService;
 import jakarta.validation.Valid;
@@ -68,6 +69,18 @@ public class AlertController {
     @PreAuthorize("hasAnyRole('CHW', 'FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<AlertResponse> markResolved(@PathVariable UUID alertId) {
         return ResponseEntity.ok(alertService.markResolved(alertId));
+    }
+
+    // ── Offline sync queue (CHW / patient mobile app) ─────────────────────────
+
+    /** Reports an offline-queued action (home visit, dose confirmation) that the
+     *  server permanently rejected — surfaces as a SYNC_FAILURE alert. */
+    @PostMapping("/sync-failure")
+    @PreAuthorize("hasAnyRole('CHW', 'PATIENT')")
+    public ResponseEntity<AlertResponse> reportSyncFailure(
+            @Valid @RequestBody ReportSyncFailureRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(alertService.reportSyncFailure(request));
     }
 
     // ── Internal — AI microservice ────────────────────────────────────────────

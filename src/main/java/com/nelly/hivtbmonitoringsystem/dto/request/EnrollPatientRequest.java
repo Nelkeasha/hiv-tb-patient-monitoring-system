@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ public class EnrollPatientRequest {
     private LocalDate dateOfBirth;
 
     @JsonAlias("gender")
+    @Pattern(regexp = "MALE|FEMALE|OTHER|UNKNOWN", message = "Sex must be MALE, FEMALE, OTHER, or UNKNOWN")
     private String sex;
 
     private String nationalId;

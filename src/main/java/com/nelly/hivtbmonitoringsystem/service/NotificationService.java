@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.service;
 
 import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
+import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -303,5 +304,63 @@ public class NotificationService {
     public void notifyPasswordReset(String email, String fullName, String tempPassword) {
         emailService.sendPasswordResetEmail(email, fullName, tempPassword);
         log.info("Password reset email dispatched to: {}", email);
+    }
+
+    // ── Village → CHW Assignment (self-presented facility patients) ───────────
+
+    /**
+     * Fired by PatientService#registerPatient when a self-presented patient is
+     * matched to a CHW by village/sector. In-app + push only — deliberately no
+     * email (a shared family phone makes email less private than a masked push)
+     * and no patient name/diagnosis in either channel until the CHW accepts.
+     */
+    public void notifyNewPatientAssignment(Patient patient, Chw chw) {
+        String protocol = protocolLabel(patient.getDiagnosisType());
+
+        alertService.createPatientAssignmentAlert(chw, protocol);
+
+        String chwFcmToken = chw.getUser().getFcmToken();
+        if (chwFcmToken != null) {
+            fcmService.sendGeneric(chwFcmToken,
+                    "New Patient Assignment",
+                    "New patient assignment in your village. Protocol: " + protocol + ". Action required within 24h.",
+                    "NEW_PATIENT_ASSIGNMENT");
+        }
+
+        log.info("New patient assignment notification sent (masked): chw={}", chw.getId());
+    }
+
+    /** Fired by PatientAssignmentScheduler at the 24h mark if still not accepted. SMS + push to the CHW. */
+    public void notifyPatientAssignmentReminder(Chw chw) {
+        String chwPhone = chw.getUser().getPhoneNumber();
+        if (chwPhone != null) {
+            smsOutboundService.send(chwPhone,
+                    "Reminder: you have a pending patient assignment in your village. " +
+                    "Open the app to review and accept within 24h.");
+        }
+
+        String chwFcmToken = chw.getUser().getFcmToken();
+        if (chwFcmToken != null) {
+            fcmService.sendGeneric(chwFcmToken,
+                    "Pending Assignment Reminder",
+                    "You still have a pending patient assignment in your village. Action required.",
+                    "NEW_PATIENT_ASSIGNMENT");
+        }
+
+        log.info("Patient assignment 24h reminder sent: chw={}", chw.getId());
+    }
+
+    /** Fired by PatientAssignmentScheduler at the 48h mark — escalates to supervisor, full detail. */
+    public void notifyPatientAssignmentEscalated(Patient patient, Chw chw) {
+        alertService.createPatientAssignmentEscalatedAlert(patient, chw);
+        log.info("Patient assignment escalated to supervisor: patient={} chw={}", patient.getId(), chw.getId());
+    }
+
+    private String protocolLabel(DiagnosisType type) {
+        return switch (type) {
+            case TB -> "TB_DOT_ADHERENCE";
+            case HIV -> "ART_ADHERENCE";
+            case HIV_TB_COINFECTION -> "ART_TB_DOT_ADHERENCE";
+        };
     }
 }

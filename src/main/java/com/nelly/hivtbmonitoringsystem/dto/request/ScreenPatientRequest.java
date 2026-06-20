@@ -36,6 +36,8 @@ public class ScreenPatientRequest {
     private String householdLocation;
 
     /** TB | HIV | HIV_TB_COINFECTION */
+    @jakarta.validation.constraints.Pattern(regexp = "TB|HIV|HIV_TB_COINFECTION",
+             message = "Suspected condition must be TB, HIV, or HIV_TB_COINFECTION")
     private String suspectedCondition;
 
     private List<String> symptoms;

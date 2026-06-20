@@ -43,7 +43,7 @@ public class TreatmentPlanController {
     @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<TreatmentPlanResponse> updatePlan(
             @PathVariable UUID planId,
-            @RequestBody UpdateTreatmentPlanRequest request) {
+            @Valid @RequestBody UpdateTreatmentPlanRequest request) {
         return ResponseEntity.ok(treatmentPlanService.updatePlan(planId, request));
     }
 

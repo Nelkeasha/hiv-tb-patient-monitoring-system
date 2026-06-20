@@ -18,7 +18,7 @@ import java.time.format.DateTimeFormatter;
 @RestController
 @RequestMapping("/api/admin/reports")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('SYSTEM_ADMIN')")
+@PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN')")
 public class AdminReportController {
 
     private final AdminReportService reportService;

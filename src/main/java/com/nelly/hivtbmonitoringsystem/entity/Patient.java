@@ -86,6 +86,30 @@ public class Patient {
     @Column(name = "registration_route", length = 20)
     private String registrationRoute = "FACILITY";
 
+    /**
+     * Acceptance gate for the CHW/patient relationship itself — distinct from
+     * registrationStatus (which tracks the patient record's clinical lifecycle).
+     * Route A (facility self-presented) patients start PENDING so the assigned
+     * CHW must explicitly accept before the full record (name, diagnosis) is
+     * visible to them; Route B (CHW screening) patients are ACCEPTED immediately
+     * since the screening CHW already knows who they are.
+     */
+    @Builder.Default
+    @Column(name = "chw_assignment_status", length = 20)
+    private String chwAssignmentStatus = "ACCEPTED";
+
+    @Column(name = "chw_assigned_at")
+    private LocalDateTime chwAssignedAt;
+
+    @Column(name = "chw_accepted_at")
+    private LocalDateTime chwAcceptedAt;
+
+    @Column(name = "chw_assignment_reminder_sent_at")
+    private LocalDateTime chwAssignmentReminderSentAt;
+
+    @Column(name = "chw_assignment_escalated_at")
+    private LocalDateTime chwAssignmentEscalatedAt;
+
     @Column(name = "registration_status", length = 20)
     private String registrationStatus = "ACTIVE";
 

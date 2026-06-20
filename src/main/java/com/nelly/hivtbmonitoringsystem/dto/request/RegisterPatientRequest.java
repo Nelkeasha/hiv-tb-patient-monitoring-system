@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -26,7 +27,10 @@ public class RegisterPatientRequest {
              message = "Sex must be MALE, FEMALE, or OTHER")
     private String sex;
 
+    @Size(max = 16, message = "National ID must be at most 16 characters")
     private String nationalId;
+
+    @Size(max = 20, message = "Phone number must be at most 20 characters")
     private String phoneNumber;
     private Boolean hasSmartphone = false;
 
@@ -43,7 +47,9 @@ public class RegisterPatientRequest {
     private LocalDate artStartDate;
     private LocalDate tbTreatmentStartDate;
 
-    /** The CHW who will be assigned to monitor this patient. */
-    @NotNull
+    /**
+     * The CHW who will be assigned to monitor this patient. Optional — if omitted,
+     * the system auto-matches a CHW by village/sector (see PatientService#matchChwByLocation).
+     */
     private UUID assignedChwId;
 }

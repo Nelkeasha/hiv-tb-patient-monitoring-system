@@ -6,6 +6,7 @@ import com.nelly.hivtbmonitoringsystem.dto.request.RegisterPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.ScreenPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.UpdatePatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.PendingAssignmentResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.ProvisionalPatientResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.FacilityProvider;
@@ -29,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -110,13 +112,25 @@ public class PatientService {
     public PatientResponse registerPatient(RegisterPatientRequest req) {
         SystemUser currentUser = resolveCurrentUser();
 
-        Chw chw = chwRepository.findById(req.getAssignedChwId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
+        Chw chw;
+        if (req.getAssignedChwId() != null) {
+            chw = chwRepository.findById(req.getAssignedChwId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
+        } else {
+            chw = matchChwByLocation(req.getVillage(), req.getSector())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "No CHW covers this village/sector — please select a CHW manually"));
+        }
 
         if (req.getNationalId() != null && !req.getNationalId().isBlank()
                 && patientRepository.existsByNationalId(req.getNationalId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "A patient with this National ID is already registered");
+        }
+        if (req.getPhoneNumber() != null && !req.getPhoneNumber().isBlank()
+                && patientRepository.existsByPhoneNumber(req.getPhoneNumber())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This phone number is already linked to another patient");
         }
         if (Boolean.TRUE.equals(req.getHasSmartphone()) && req.getPhoneNumber() != null
                 && userRepository.existsByPhoneNumber(req.getPhoneNumber())) {
@@ -151,6 +165,8 @@ public class PatientService {
                 .confirmedAt(LocalDateTime.now())
                 .syncStatus(SyncStatus.PENDING)
                 .isActive(true)
+                .chwAssignmentStatus("PENDING")
+                .chwAssignedAt(LocalDateTime.now())
                 .build();
 
         patientRepository.save(patient);
@@ -176,6 +192,20 @@ public class PatientService {
         }
 
         auditLogService.log("REGISTER_PATIENT", "patients", patient.getId());
+
+        // SMS credentials to patient if an account was just created
+        if (loginEmail != null && patient.getPhoneNumber() != null) {
+            notificationService.notifyPatientAccountCreated(
+                    patient.getPhoneNumber(),
+                    patient.getFullName(),
+                    loginEmail,
+                    temporaryPassword);
+        }
+
+        // Masked assignment notification — the CHW must accept before the full
+        // record (name, diagnosis) is visible to them; see acceptAssignment().
+        notificationService.notifyNewPatientAssignment(patient, chw);
+
         return toResponse(patient, loginEmail, temporaryPassword);
     }
 
@@ -316,7 +346,9 @@ public class PatientService {
     public List<PatientResponse> getMyPatients() {
         Chw chw = resolveCurrentChw();
         return patientRepository.findByChwId(chw.getId())
-                .stream().map(p -> toResponse(p, null, null)).collect(Collectors.toList());
+                .stream()
+                .filter(p -> !"PENDING".equals(p.getChwAssignmentStatus()))
+                .map(p -> toResponse(p, null, null)).collect(Collectors.toList());
     }
 
     public PatientResponse getPatient(UUID patientId) {
@@ -326,6 +358,45 @@ public class PatientService {
         if (!patient.getChw().getId().equals(chw.getId())) {
             throw new RuntimeException("Access denied: patient not assigned to you");
         }
+        if ("PENDING".equals(patient.getChwAssignmentStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Accept this patient assignment before viewing the full record");
+        }
+        return toResponse(patient, null, null);
+    }
+
+    /** Masked list — name/diagnosis withheld until the CHW accepts (see acceptAssignment). */
+    public List<PendingAssignmentResponse> getPendingAssignments() {
+        Chw chw = resolveCurrentChw();
+        return patientRepository.findByChwId(chw.getId())
+                .stream()
+                .filter(p -> "PENDING".equals(p.getChwAssignmentStatus()))
+                .map(p -> PendingAssignmentResponse.builder()
+                        .patientId(p.getId())
+                        .village(p.getVillage())
+                        .sector(p.getSector())
+                        .protocol(protocolLabel(p.getDiagnosisType()))
+                        .assignedAt(p.getChwAssignedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public PatientResponse acceptAssignment(UUID patientId) {
+        Chw chw = resolveCurrentChw();
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+        if (!patient.getChw().getId().equals(chw.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
+        }
+        if (!"PENDING".equals(patient.getChwAssignmentStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Assignment already accepted");
+        }
+
+        patient.setChwAssignmentStatus("ACCEPTED");
+        patient.setChwAcceptedAt(LocalDateTime.now());
+        patientRepository.save(patient);
+        auditLogService.log("ACCEPT_PATIENT_ASSIGNMENT", "patients", patient.getId());
         return toResponse(patient, null, null);
     }
 
@@ -430,6 +501,26 @@ public class PatientService {
                 .labResultNotes(p.getLabResultNotes())
                 .confirmedAt(p.getConfirmedAt())
                 .build();
+    }
+
+    /** Village-level match takes priority; falls back to sector-level coverage. */
+    private Optional<Chw> matchChwByLocation(String village, String sector) {
+        if (village != null && !village.isBlank()) {
+            Optional<Chw> byVillage = chwRepository.findFirstByIsActiveTrueAndAssignedVillageIgnoreCase(village.trim());
+            if (byVillage.isPresent()) return byVillage;
+        }
+        if (sector != null && !sector.isBlank()) {
+            return chwRepository.findFirstByIsActiveTrueAndAssignedSectorIgnoreCase(sector.trim());
+        }
+        return Optional.empty();
+    }
+
+    private String protocolLabel(DiagnosisType type) {
+        return switch (type) {
+            case TB -> "TB_DOT_ADHERENCE";
+            case HIV -> "ART_ADHERENCE";
+            case HIV_TB_COINFECTION -> "ART_TB_DOT_ADHERENCE";
+        };
     }
 
     private Chw resolveCurrentChw() {

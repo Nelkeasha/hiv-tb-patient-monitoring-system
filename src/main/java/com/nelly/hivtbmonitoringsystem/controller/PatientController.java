@@ -2,7 +2,9 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.UpdatePatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.PendingAssignmentResponse;
 import com.nelly.hivtbmonitoringsystem.service.PatientService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,7 +37,20 @@ public class PatientController {
 
     @PutMapping("/{id}")
     public ResponseEntity<PatientResponse> update(@PathVariable UUID id,
-                                                   @RequestBody UpdatePatientRequest request) {
+                                                   @Valid @RequestBody UpdatePatientRequest request) {
         return ResponseEntity.ok(patientService.updatePatient(id, request));
+    }
+
+    // ── Village → CHW assignment acceptance (self-presented facility patients) ─
+
+    /** Masked list — name/diagnosis withheld until accepted via the endpoint below. */
+    @GetMapping("/pending-assignments")
+    public ResponseEntity<List<PendingAssignmentResponse>> getPendingAssignments() {
+        return ResponseEntity.ok(patientService.getPendingAssignments());
+    }
+
+    @PostMapping("/{id}/accept-assignment")
+    public ResponseEntity<PatientResponse> acceptAssignment(@PathVariable UUID id) {
+        return ResponseEntity.ok(patientService.acceptAssignment(id));
     }
 }

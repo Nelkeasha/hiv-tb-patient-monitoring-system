@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.CreateAlertRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ReportSyncFailureRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.AlertResponse;
 import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
@@ -31,6 +32,7 @@ public class AlertService {
     private final FacilityProviderRepository facilityProviderRepository;
     private final SystemUserRepository systemUserRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AuditLogService auditLogService;
 
     // ── CHW ──────────────────────────────────────────────────────────────────
 
@@ -72,7 +74,9 @@ public class AlertService {
     public AlertResponse markRead(UUID alertId) {
         Alert alert = findAndAuthorizeWrite(alertId);
         alert.setIsRead(true);
-        return toResponse(alertRepository.save(alert));
+        Alert saved = alertRepository.save(alert);
+        auditLogService.log("ALERT_ACKNOWLEDGED", "alerts", saved.getId());
+        return toResponse(saved);
     }
 
     @Transactional
@@ -81,7 +85,9 @@ public class AlertService {
         alert.setIsResolved(true);
         alert.setResolvedAt(LocalDateTime.now());
         alert.setResolvedBy(resolveCurrentUser());
-        return toResponse(alertRepository.save(alert));
+        Alert saved = alertRepository.save(alert);
+        auditLogService.log("ALERT_RESOLVED", "alerts", saved.getId());
+        return toResponse(saved);
     }
 
     private void broadcast(Alert saved) {
@@ -95,6 +101,102 @@ public class AlertService {
      */
     public void broadcastExternalAlert(AlertResponse response) {
         messagingTemplate.convertAndSend("/topic/alerts", response);
+    }
+
+    // ── Reported by the mobile app's offline sync queue ───────────────────────
+
+    /**
+     * Raised when a CHW's or patient's offline-queued action (home visit, dose
+     * confirmation) is rejected by the server in a way retrying cannot fix.
+     * Reuses the existing alert pipeline so it surfaces on the CHW's own feed,
+     * the facility/clinical feed, and the supervisor's facility-scoped feed —
+     * the same places any other WARNING alert would.
+     */
+    @Transactional
+    public AlertResponse reportSyncFailure(ReportSyncFailureRequest req) {
+        SystemUser caller = resolveCurrentUser();
+
+        Patient patient;
+        Chw chw;
+        if (caller.getRole() == UserRole.CHW) {
+            chw = chwRepository.findByUserId(caller.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "CHW profile not found"));
+            if (req.getPatientId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "patientId is required when reporting a HOME_VISIT sync failure");
+            }
+            patient = patientRepository.findById(req.getPatientId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+            if (!patient.getChw().getId().equals(chw.getId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not assigned to you");
+            }
+        } else if (caller.getRole() == UserRole.PATIENT) {
+            patient = patientRepository.findByUserId(caller.getId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found"));
+            chw = patient.getChw();
+        } else {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only a CHW or patient can report a sync failure");
+        }
+
+        String actionLabel = "HOME_VISIT".equals(req.getActionType()) ? "home visit" : "dose confirmation";
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.SYNC_FAILURE)
+                .severity(AlertSeverity.WARNING)
+                .title("Offline Sync Failed — " + patient.getFullName())
+                .message(String.format(
+                        "A %s recorded offline for %s could not be saved after sync: %s",
+                        actionLabel, patient.getFullName(), req.getReason()))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+
+        Alert saved = alertRepository.save(alert);
+        broadcast(saved);
+        auditLogService.log("SYNC_FAILURE_REPORTED", "alerts", saved.getId());
+        return toResponse(saved);
+    }
+
+    // ── Called internally by PatientService / PatientAssignmentScheduler ─────
+
+    /**
+     * Masked notification — deliberately does NOT link the patient, so the
+     * existing toResponse() mapping below returns patientName=null. The CHW
+     * sees only the protocol type until they accept via PatientController.
+     */
+    @Transactional
+    public void createPatientAssignmentAlert(Chw chw, String protocol) {
+        Alert alert = Alert.builder()
+                .chw(chw)
+                .alertType(AlertType.NEW_PATIENT_ASSIGNMENT)
+                .severity(AlertSeverity.WARNING)
+                .title("New Patient Assignment")
+                .message("New patient assignment in your village. Protocol: " + protocol +
+                        ". Action required within 24h.")
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        broadcast(alertRepository.save(alert));
+    }
+
+    /** 48h escalation — supervisor visibility, so full patient detail is included. */
+    @Transactional
+    public void createPatientAssignmentEscalatedAlert(Patient patient, Chw chw) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.NEW_PATIENT_ASSIGNMENT)
+                .severity(AlertSeverity.CRITICAL)
+                .title("Patient Assignment Not Accepted — " + patient.getFullName())
+                .message(String.format(
+                        "CHW %s has not accepted the assignment for patient %s (%s) within 48 hours. " +
+                        "Supervisor follow-up required.",
+                        chw.getUser().getFullName(), patient.getFullName(), patient.getPatientCode()))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        broadcast(alertRepository.save(alert));
     }
 
     // ── Internal — called by AI microservice (SYSTEM_ADMIN) ──────────────────
