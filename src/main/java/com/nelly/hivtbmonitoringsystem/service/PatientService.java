@@ -29,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -504,15 +505,25 @@ public class PatientService {
     }
 
     /** Village-level match takes priority; falls back to sector-level coverage. */
+    /**
+     * Matches the patient's village (falling back to sector) against active CHWs.
+     * When more than one CHW covers the same village/sector, the one with the
+     * fewest currently-active patients is picked, so a shared village's caseload
+     * doesn't pile onto a single CHW.
+     */
     private Optional<Chw> matchChwByLocation(String village, String sector) {
+        List<Chw> candidates = List.of();
         if (village != null && !village.isBlank()) {
-            Optional<Chw> byVillage = chwRepository.findFirstByIsActiveTrueAndAssignedVillageIgnoreCase(village.trim());
-            if (byVillage.isPresent()) return byVillage;
+            candidates = chwRepository.findByIsActiveTrueAndAssignedVillageIgnoreCase(village.trim());
         }
-        if (sector != null && !sector.isBlank()) {
-            return chwRepository.findFirstByIsActiveTrueAndAssignedSectorIgnoreCase(sector.trim());
+        if (candidates.isEmpty() && sector != null && !sector.isBlank()) {
+            candidates = chwRepository.findByIsActiveTrueAndAssignedSectorIgnoreCase(sector.trim());
         }
-        return Optional.empty();
+        if (candidates.isEmpty()) return Optional.empty();
+        if (candidates.size() == 1) return Optional.of(candidates.get(0));
+
+        return candidates.stream()
+                .min(Comparator.comparingLong(c -> patientRepository.countByChwIdAndIsActiveTrue(c.getId())));
     }
 
     private String protocolLabel(DiagnosisType type) {

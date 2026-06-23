@@ -15,7 +15,11 @@ public interface ChwRepository extends JpaRepository<Chw, UUID> {
     List<Chw> findByFacilityId(UUID facilityId);
     List<Chw> findByIsActiveTrue();
 
-    /** Village-level match comes first when auto-assigning a self-presented patient to a CHW. */
-    Optional<Chw> findFirstByIsActiveTrueAndAssignedVillageIgnoreCase(String assignedVillage);
-    Optional<Chw> findFirstByIsActiveTrueAndAssignedSectorIgnoreCase(String assignedSector);
+    /**
+     * Village-level match comes first when auto-assigning a self-presented patient to a CHW.
+     * Returns all active matches (not just one) so the caller can tie-break by caseload
+     * when more than one CHW covers the same village/sector.
+     */
+    List<Chw> findByIsActiveTrueAndAssignedVillageIgnoreCase(String assignedVillage);
+    List<Chw> findByIsActiveTrueAndAssignedSectorIgnoreCase(String assignedSector);
 }

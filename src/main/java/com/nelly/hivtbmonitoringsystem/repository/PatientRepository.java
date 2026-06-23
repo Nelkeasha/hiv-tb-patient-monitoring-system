@@ -34,4 +34,6 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findByRegistrationStatus(String registrationStatus);
     List<Patient> findByFacilityIdAndRegistrationStatus(UUID facilityId, String registrationStatus);
     List<Patient> findByChwAssignmentStatus(String chwAssignmentStatus);
+    /** Current caseload used to tie-break CHW auto-assignment when several CHWs cover the same village/sector. */
+    long countByChwIdAndIsActiveTrue(UUID chwId);
 }
