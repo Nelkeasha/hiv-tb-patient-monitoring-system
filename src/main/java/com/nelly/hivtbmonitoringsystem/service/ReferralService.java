@@ -8,6 +8,8 @@ import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.ReferralStatus;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
+import com.nelly.hivtbmonitoringsystem.validation.BusinessRuleException;
+import com.nelly.hivtbmonitoringsystem.validation.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -27,6 +30,7 @@ public class ReferralService {
     private final ChwRepository chwRepository;
     private final FacilityProviderRepository facilityProviderRepository;
     private final SystemUserRepository systemUserRepository;
+    private final StatusTransitionValidator statusTransitionValidator;
 
     // ── CHW ──────────────────────────────────────────────────────────────────
 
@@ -92,9 +96,8 @@ public class ReferralService {
         FacilityProvider provider = resolveProvider();
         Referral referral = findReferralForFacility(referralId, provider);
 
-        if (referral.getStatus() != ReferralStatus.PENDING) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Referral is not in PENDING state");
-        }
+        statusTransitionValidator.requireCurrentStatus("Referral", referral.getStatus(),
+                Set.of(ReferralStatus.PENDING), "confirm or modify it");
 
         ReferralStatus newStatus = req.getStatus() != null ? req.getStatus() : ReferralStatus.CONFIRMED;
         referral.setStatus(newStatus);
@@ -110,15 +113,11 @@ public class ReferralService {
         FacilityProvider provider = resolveProvider();
         Referral referral = findReferralForFacility(referralId, provider);
 
-        if (referral.getStatus() != ReferralStatus.CONFIRMED
-                && referral.getStatus() != ReferralStatus.MODIFIED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Referral must be CONFIRMED or MODIFIED to record attendance");
-        }
-        if (req.getStatus() != ReferralStatus.ATTENDED
-                && req.getStatus() != ReferralStatus.NOT_ATTENDED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Status must be ATTENDED or NOT_ATTENDED");
+        statusTransitionValidator.requireCurrentStatus("Referral", referral.getStatus(),
+                Set.of(ReferralStatus.CONFIRMED, ReferralStatus.MODIFIED), "record attendance");
+
+        if (req.getStatus() != ReferralStatus.ATTENDED && req.getStatus() != ReferralStatus.NOT_ATTENDED) {
+            throw new BusinessRuleException("status", "Status must be ATTENDED or NOT_ATTENDED", HttpStatus.BAD_REQUEST);
         }
 
         referral.setStatus(req.getStatus());
@@ -132,11 +131,8 @@ public class ReferralService {
         FacilityProvider provider = resolveProvider();
         Referral referral = findReferralForFacility(referralId, provider);
 
-        if (referral.getStatus() == ReferralStatus.ATTENDED
-                || referral.getStatus() == ReferralStatus.NOT_ATTENDED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Completed referrals cannot be cancelled");
-        }
+        statusTransitionValidator.requireNotTerminal("Referral", referral.getStatus(),
+                Set.of(ReferralStatus.ATTENDED, ReferralStatus.NOT_ATTENDED, ReferralStatus.CANCELLED));
 
         referral.setStatus(ReferralStatus.CANCELLED);
         return toResponse(referralRepository.save(referral));

@@ -3,11 +3,13 @@ package com.nelly.hivtbmonitoringsystem.controller;
 import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.service.FacilityDashboardService;
 import com.nelly.hivtbmonitoringsystem.service.FacilityReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.ClinicalCsvReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.ClinicalExcelReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.ClinicalPdfReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.support.ReportFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,8 @@ public class FacilityDashboardController {
     private final FacilityDashboardService dashboardService;
     private final FacilityReportService reportService;
     private final ClinicalPdfReportService pdfReportService;
+    private final ClinicalExcelReportService excelReportService;
+    private final ClinicalCsvReportService csvReportService;
 
     /** Facility-level summary: patient counts, CHW count, risk distribution, adherence average. */
     @GetMapping("/stats")
@@ -69,16 +73,25 @@ public class FacilityDashboardController {
         return ResponseEntity.ok(dashboardService.getAdherenceTrend());
     }
 
-    /** Official facility report as a printable PDF document. */
-    @GetMapping("/reports/summary/pdf")
-    public ResponseEntity<byte[]> downloadReportPdf() {
+    /** Facility report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv. */
+    @GetMapping("/reports/summary/export")
+    public ResponseEntity<byte[]> downloadReport(@RequestParam String format) {
+        ReportFormat reportFormat = ReportFormat.fromParam(format);
         FacilityReportResponse report = reportService.generateSummary();
-        byte[] pdf = pdfReportService.generate(report);
-        String filename = "facility-report-" + report.getGeneratedAt().format(DateTimeFormatter.ISO_LOCAL_DATE) + ".pdf";
+
+        byte[] body = switch (reportFormat) {
+            case PDF -> pdfReportService.generate(report);
+            case EXCEL -> excelReportService.generate(report);
+            case CSV -> csvReportService.generate(report);
+        };
+
+        String filename = "facility-report-"
+                + report.getGeneratedAt().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                + "." + reportFormat.fileExtension;
         return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
+                .contentType(reportFormat.contentType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment().filename(filename).build().toString())
-                .body(pdf);
+                .body(body);
     }
 }

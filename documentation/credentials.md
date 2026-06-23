@@ -6,6 +6,9 @@ password: Admin@2026
 "password": "Jean@2026"
 "email": "chw1@hivtb.rw"
 "password": "Alice@2026"
+"email":claudine@chw.rw
+"password": Dv7ymkmUEk
+
 
 ## Facility provider
 "email": "john@dmc.rw",
@@ -39,5 +42,6 @@ Port: 5432
 Database: hivtb_db
 Username: hivtb_db_user
 Password: 6gEdOnNADgsu0IxwneyaLe7OHNasfXJ
+
 
 

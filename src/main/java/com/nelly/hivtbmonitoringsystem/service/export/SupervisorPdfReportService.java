@@ -1,7 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.service.export;
 
-import com.nelly.hivtbmonitoringsystem.dto.response.ChwPerformanceRow;
-import com.nelly.hivtbmonitoringsystem.dto.response.FacilityReportResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.SupervisorChwReportRow;
+import com.nelly.hivtbmonitoringsystem.dto.response.SupervisorReportResponse;
 import com.nelly.hivtbmonitoringsystem.service.export.support.PdfReportBuilder;
 import org.springframework.stereotype.Service;
 
@@ -10,23 +10,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Renders the facility (clinical) report as a formal PDF document — the
- * "official" artifact clinical staff print or file, as opposed to the live
- * dashboard which only shows a subset of these figures.
+ * Renders the supervisor's programme report as a formal PDF — a printable
+ * counterpart to the CSV export, for supervision meetings rather than
+ * system integration.
  */
 @Service
-public class ClinicalPdfReportService {
+public class SupervisorPdfReportService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
 
-    public byte[] generate(FacilityReportResponse report) {
+    public byte[] generate(SupervisorReportResponse report) {
         String metaLine = (report.getFacilityName() != null ? report.getFacilityName() : "Facility")
                 + (report.getDistrict() != null ? " — " + report.getDistrict() : "")
                 + "   |   Generated: "
                 + (report.getGeneratedAt() != null ? report.getGeneratedAt().format(TS) : "-");
 
         PdfReportBuilder builder = new PdfReportBuilder()
-                .header("Official Facility Clinical Report", metaLine)
+                .header("Supervisor Programme Report", metaLine)
+                .section("Workforce", new String[][]{
+                        {"Total CHWs", String.valueOf(report.getTotalChws())},
+                        {"Active CHWs", String.valueOf(report.getActiveChws())},
+                })
                 .section("Patient Overview", new String[][]{
                         {"Total Active Patients", String.valueOf(report.getTotalActivePatients())},
                         {"HIV Only", String.valueOf(report.getHivOnly())},
@@ -40,45 +44,41 @@ public class ClinicalPdfReportService {
                         {"Critical", String.valueOf(report.getRiskCritical())},
                         {"Unscored", String.valueOf(report.getRiskUnscored())},
                 })
-                .section("Adherence", new String[][]{
+                .section("Adherence & Activity", new String[][]{
                         {"Facility Adherence Average", PdfReportBuilder.formatPct(report.getFacilityAdherenceAvg())},
                         {"Below Threshold (Patients)", String.valueOf(report.getBelowThresholdCount())},
-                        {"False Confirmation Flags", String.valueOf(report.getFalseConfirmationFlagCount())},
-                })
-                .section("Referrals", new String[][]{
-                        {"Total", String.valueOf(report.getReferralTotal())},
-                        {"Pending", String.valueOf(report.getReferralPending())},
-                        {"Confirmed", String.valueOf(report.getReferralConfirmed())},
-                        {"Attended", String.valueOf(report.getReferralAttended())},
-                        {"Not Attended", String.valueOf(report.getReferralNotAttended())},
-                        {"Cancelled", String.valueOf(report.getReferralCancelled())},
+                        {"Home Visits (30d)", String.valueOf(report.getTotalHomeVisits30d())},
+                        {"Missed Doses (7d)", String.valueOf(report.getTotalMissedDoses7d())},
                 })
                 .section("Alerts (Unresolved)", new String[][]{
                         {"Total Unresolved", String.valueOf(report.getUnresolvedAlerts())},
                         {"Critical", String.valueOf(report.getCriticalAlerts())},
                         {"Warning", String.valueOf(report.getWarningAlerts())},
+                        {"Missed Dose", String.valueOf(report.getMissedDoseAlerts())},
+                        {"Early Warning", String.valueOf(report.getEarlyWarningAlerts())},
                 })
                 .dataTable("CHW Performance (Last 30 Days)",
-                        new String[]{"CHW Name", "Employee Code", "Village", "Active Patients", "Visits (30d)", "Missed Doses (30d)"},
+                        new String[]{"CHW Name", "Employee Code", "Village", "Active Patients", "High Risk", "Visits (30d)", "Missed Doses (7d)"},
                         chwRows(report),
-                        "No CHW activity recorded in the last 30 days")
+                        "No CHW activity recorded")
                 .footer("This is a system-generated report from the HIV/TB Monitoring System. "
                         + "Figures reflect data as of the generation timestamp above.");
 
         return builder.build();
     }
 
-    private List<String[]> chwRows(FacilityReportResponse report) {
+    private List<String[]> chwRows(SupervisorReportResponse report) {
         List<String[]> rows = new ArrayList<>();
         if (report.getChwPerformance() == null) return rows;
-        for (ChwPerformanceRow row : report.getChwPerformance()) {
+        for (SupervisorChwReportRow row : report.getChwPerformance()) {
             rows.add(new String[]{
                     PdfReportBuilder.nullSafe(row.getChwName()),
                     PdfReportBuilder.nullSafe(row.getEmployeeCode()),
                     PdfReportBuilder.nullSafe(row.getAssignedVillage()),
                     String.valueOf(row.getActivePatients()),
-                    String.valueOf(row.getVisitsLast30Days()),
-                    String.valueOf(row.getMissedDosesLast30Days()),
+                    String.valueOf(row.getHighRiskPatients()),
+                    String.valueOf(row.getHomeVisits30d()),
+                    String.valueOf(row.getMissedDoses7d()),
             });
         }
         return rows;

@@ -1,39 +1,37 @@
 package com.nelly.hivtbmonitoringsystem.service.export;
 
-import com.nelly.hivtbmonitoringsystem.dto.response.SupervisorChwReportRow;
-import com.nelly.hivtbmonitoringsystem.dto.response.SupervisorReportResponse;
+import com.nelly.hivtbmonitoringsystem.dto.response.ChwPerformanceRow;
+import com.nelly.hivtbmonitoringsystem.dto.response.FacilityReportResponse;
 import com.nelly.hivtbmonitoringsystem.service.export.support.CsvUtil;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 
 /**
- * Renders the supervisor's CHW-performance report as flat CSV — one row per
- * CHW, no narrative sections — so it can be ingested directly by another
- * system (HMIS import, spreadsheet pivot, analytics pipeline) without a
- * custom parser.
+ * Renders the facility (clinical) report's CHW performance breakdown as
+ * flat CSV — the system-integration counterpart to the official PDF, for
+ * feeding into an external HMIS or analytics pipeline.
  */
 @Service
-public class SupervisorCsvReportService {
+public class ClinicalCsvReportService {
 
     private static final String[] HEADERS = {
             "chw_name", "employee_code", "assigned_village",
-            "active_patients", "high_risk_patients", "home_visits_30d", "missed_doses_7d",
+            "active_patients", "visits_30d", "missed_doses_30d",
     };
 
-    public byte[] generate(SupervisorReportResponse report) {
+    public byte[] generate(FacilityReportResponse report) {
         StringBuilder sb = new StringBuilder();
         sb.append(String.join(",", HEADERS)).append("\r\n");
 
         if (report.getChwPerformance() != null) {
-            for (SupervisorChwReportRow row : report.getChwPerformance()) {
+            for (ChwPerformanceRow row : report.getChwPerformance()) {
                 sb.append(CsvUtil.escape(row.getChwName())).append(',')
                   .append(CsvUtil.escape(row.getEmployeeCode())).append(',')
                   .append(CsvUtil.escape(row.getAssignedVillage())).append(',')
                   .append(row.getActivePatients()).append(',')
-                  .append(row.getHighRiskPatients()).append(',')
-                  .append(row.getHomeVisits30d()).append(',')
-                  .append(row.getMissedDoses7d())
+                  .append(row.getVisitsLast30Days()).append(',')
+                  .append(row.getMissedDosesLast30Days())
                   .append("\r\n");
             }
         }

@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.entity.Location;
 import com.nelly.hivtbmonitoringsystem.service.LocationService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -26,7 +27,7 @@ public class LocationController {
     // Create
     @PostMapping
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN')")
-    public ResponseEntity<Location> create(@RequestBody Location location) {
+    public ResponseEntity<Location> create(@Valid @RequestBody Location location) {
         return new ResponseEntity<>(locationService.createLocation(location), HttpStatus.CREATED);
     }
 
@@ -134,7 +135,7 @@ public class LocationController {
     // Update
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('SYSTEM_ADMIN', 'ADMIN')")
-    public ResponseEntity<Location> update(@PathVariable Long id, @RequestBody Location locationDetails) {
+    public ResponseEntity<Location> update(@PathVariable Long id, @Valid @RequestBody Location locationDetails) {
         try {
             Location updated = locationService.updateLocation(id, locationDetails);
             return new ResponseEntity<>(updated, HttpStatus.OK);

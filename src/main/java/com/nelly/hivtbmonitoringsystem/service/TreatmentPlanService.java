@@ -19,6 +19,7 @@ import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.repository.TreatmentPlanRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
+import com.nelly.hivtbmonitoringsystem.validation.BusinessRuleException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -97,7 +98,14 @@ public class TreatmentPlanService {
         if (req.getMedicationName() != null) plan.setMedicationName(req.getMedicationName());
         if (req.getDosage() != null) plan.setDosage(req.getDosage());
         if (req.getFrequency() != null) plan.setFrequency(req.getFrequency());
-        if (req.getEndDate() != null) plan.setEndDate(req.getEndDate());
+        if (req.getEndDate() != null) {
+            if (req.getEndDate().isBefore(plan.getStartDate())) {
+                throw new BusinessRuleException("endDate",
+                        "End date cannot be before the treatment start date (" + plan.getStartDate() + ")",
+                        HttpStatus.BAD_REQUEST);
+            }
+            plan.setEndDate(req.getEndDate());
+        }
         if (req.getIsActive() != null) {
             plan.setIsActive(req.getIsActive());
             if (!req.getIsActive()) {

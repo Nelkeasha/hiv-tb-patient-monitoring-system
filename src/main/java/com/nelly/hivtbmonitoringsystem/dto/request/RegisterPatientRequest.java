@@ -1,8 +1,14 @@
 package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
+import com.nelly.hivtbmonitoringsystem.validation.ValidationMessages;
+import com.nelly.hivtbmonitoringsystem.validation.ValidationPatterns;
+import com.nelly.hivtbmonitoringsystem.validation.constraints.RwandaNationalId;
+import com.nelly.hivtbmonitoringsystem.validation.constraints.RwandaPhone;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -16,35 +22,42 @@ import java.util.UUID;
 @Data
 public class RegisterPatientRequest {
 
-    @NotBlank
+    @NotBlank(message = ValidationMessages.FULL_NAME_REQUIRED)
+    @Size(max = 100, message = ValidationMessages.FULL_NAME_TOO_LONG)
     private String fullName;
 
-    @NotNull
+    @NotNull(message = ValidationMessages.DATE_OF_BIRTH_REQUIRED)
+    @PastOrPresent(message = ValidationMessages.DATE_OF_BIRTH_NOT_FUTURE)
     private LocalDate dateOfBirth;
 
-    @NotBlank
-    @jakarta.validation.constraints.Pattern(regexp = "MALE|FEMALE|OTHER",
-             message = "Sex must be MALE, FEMALE, or OTHER")
+    @NotBlank(message = ValidationMessages.SEX_INVALID)
+    @Pattern(regexp = ValidationPatterns.SEX_DEFINITIVE, message = ValidationMessages.SEX_INVALID)
     private String sex;
 
-    @Size(max = 16, message = "National ID must be at most 16 characters")
+    @RwandaNationalId
     private String nationalId;
 
-    @Size(max = 20, message = "Phone number must be at most 20 characters")
+    @RwandaPhone
     private String phoneNumber;
     private Boolean hasSmartphone = false;
 
     private String province;
+    @Size(max = 100, message = ValidationMessages.DISTRICT_TOO_LONG)
     private String district;
+    @Size(max = 100, message = ValidationMessages.SECTOR_TOO_LONG)
     private String sector;
     private String cell;
+    @Size(max = 100, message = ValidationMessages.VILLAGE_TOO_LONG)
     private String village;
+    @Size(max = 255, message = ValidationMessages.HOUSEHOLD_LOCATION_TOO_LONG)
     private String householdLocation;
 
-    @NotNull
+    @NotNull(message = ValidationMessages.DIAGNOSIS_TYPE_REQUIRED)
     private DiagnosisType diagnosisType;
 
+    @PastOrPresent(message = "ART start date cannot be in the future")
     private LocalDate artStartDate;
+    @PastOrPresent(message = "TB treatment start date cannot be in the future")
     private LocalDate tbTreatmentStartDate;
 
     /**

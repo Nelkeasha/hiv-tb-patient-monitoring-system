@@ -8,10 +8,10 @@ import lombok.Data;
 @Data
 public class ChangePasswordRequest {
 
-    @NotBlank
+    @NotBlank(message = "Current password is required")
     private String currentPassword;
 
-    @NotBlank
+    @NotBlank(message = "New password is required")
     @Size(min = 8, message = "New password must be at least 8 characters")
     @Pattern(regexp = ".*[A-Z].*", message = "New password must contain at least one uppercase letter")
     @Pattern(regexp = ".*[0-9].*", message = "New password must contain at least one digit")

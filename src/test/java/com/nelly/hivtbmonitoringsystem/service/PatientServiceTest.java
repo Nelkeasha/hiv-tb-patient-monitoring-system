@@ -11,6 +11,7 @@ import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
 import com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
+import com.nelly.hivtbmonitoringsystem.validation.UniquenessValidator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,10 +44,12 @@ class PatientServiceTest {
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final AuditLogService auditLogService = mock(AuditLogService.class);
     private final NotificationService notificationService = mock(NotificationService.class);
+    private final UniquenessValidator uniquenessValidator = new UniquenessValidator();
 
     private final PatientService patientService = new PatientService(
             patientRepository, userRepository, chwRepository,
-            facilityProviderRepository, passwordEncoder, auditLogService, notificationService);
+            facilityProviderRepository, passwordEncoder, auditLogService, notificationService,
+            uniquenessValidator);
 
     @BeforeEach
     void setUpSecurityContext() {

@@ -9,6 +9,7 @@ import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
 import com.nelly.hivtbmonitoringsystem.enums.AlertType;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
+import com.nelly.hivtbmonitoringsystem.validation.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -35,6 +37,7 @@ public class TracingTaskService {
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
     private final AiRiskScoreService aiRiskScoreService;
+    private final StatusTransitionValidator statusTransitionValidator;
 
     // ── Generate (system or admin creates) ───────────────────────────────────
 
@@ -191,10 +194,6 @@ public class TracingTaskService {
     }
 
     private void validateStatusTransition(String current, String next) {
-        // RESOLVED tasks cannot be re-opened
-        if ("RESOLVED".equals(current)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Resolved tasks cannot be modified");
-        }
+        statusTransitionValidator.requireNotTerminal("Tracing task", current, Set.of("RESOLVED"));
     }
 }

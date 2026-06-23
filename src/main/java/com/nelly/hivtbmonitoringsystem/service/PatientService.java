@@ -20,6 +20,7 @@ import com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.util.SecurityUtil;
+import com.nelly.hivtbmonitoringsystem.validation.UniquenessValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -46,6 +47,7 @@ public class PatientService {
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final UniquenessValidator uniquenessValidator;
 
     // ── Route B — CHW provisional screening ──────────────────────────────────
 
@@ -123,21 +125,18 @@ public class PatientService {
                             "No CHW covers this village/sector — please select a CHW manually"));
         }
 
-        if (req.getNationalId() != null && !req.getNationalId().isBlank()
-                && patientRepository.existsByNationalId(req.getNationalId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "A patient with this National ID is already registered");
-        }
-        if (req.getPhoneNumber() != null && !req.getPhoneNumber().isBlank()
-                && patientRepository.existsByPhoneNumber(req.getPhoneNumber())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This phone number is already linked to another patient");
-        }
-        if (Boolean.TRUE.equals(req.getHasSmartphone()) && req.getPhoneNumber() != null
-                && userRepository.existsByPhoneNumber(req.getPhoneNumber())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "This phone number is already linked to another account");
-        }
+        uniquenessValidator.ensureUnique("nationalId",
+                req.getNationalId() != null && !req.getNationalId().isBlank()
+                        && patientRepository.existsByNationalId(req.getNationalId()),
+                "A patient with this National ID is already registered");
+        uniquenessValidator.ensureUnique("phoneNumber",
+                req.getPhoneNumber() != null && !req.getPhoneNumber().isBlank()
+                        && patientRepository.existsByPhoneNumber(req.getPhoneNumber()),
+                "This phone number is already linked to another patient");
+        uniquenessValidator.ensureUnique("phoneNumber",
+                Boolean.TRUE.equals(req.getHasSmartphone()) && req.getPhoneNumber() != null
+                        && userRepository.existsByPhoneNumber(req.getPhoneNumber()),
+                "This phone number is already linked to another account");
 
         String patientCode = generatePatientCode();
 
@@ -296,9 +295,9 @@ public class PatientService {
         if (patientRepository.existsByPatientCode(patientCode)) {
             patientCode = generatePatientCode();
         }
-        if (req.getNationalId() != null && patientRepository.existsByNationalId(req.getNationalId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "National ID already registered: " + req.getNationalId());
-        }
+        uniquenessValidator.ensureUnique("nationalId", "National ID", req.getNationalId(),
+                req.getNationalId() != null && !req.getNationalId().isBlank()
+                        && patientRepository.existsByNationalId(req.getNationalId()));
 
         DiagnosisType diagnosisType = req.getDiagnosisType();
         if (diagnosisType == null) {

@@ -4,10 +4,12 @@ import com.nelly.hivtbmonitoringsystem.dto.response.*;
 import com.nelly.hivtbmonitoringsystem.service.SupervisorDashboardService;
 import com.nelly.hivtbmonitoringsystem.service.SupervisorReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.SupervisorCsvReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.SupervisorExcelReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.SupervisorPdfReportService;
+import com.nelly.hivtbmonitoringsystem.service.export.support.ReportFormat;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +26,8 @@ public class SupervisorDashboardController {
 
     private final SupervisorDashboardService dashboardService;
     private final SupervisorReportService reportService;
+    private final SupervisorPdfReportService pdfReportService;
+    private final SupervisorExcelReportService excelReportService;
     private final SupervisorCsvReportService csvReportService;
 
     /** Operational overview: CHW counts, risk distribution, visit activity, missed dose totals. */
@@ -68,16 +72,23 @@ public class SupervisorDashboardController {
         return ResponseEntity.ok(dashboardService.getWeeklyActivity());
     }
 
-    /** CHW performance as flat CSV — one row per CHW, for import into other systems. */
-    @GetMapping("/reports/summary/csv")
-    public ResponseEntity<byte[]> downloadReportCsv() {
+    /** Supervisor report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv. */
+    @GetMapping("/reports/summary/export")
+    public ResponseEntity<byte[]> downloadReport(@RequestParam String format) {
+        ReportFormat reportFormat = ReportFormat.fromParam(format);
         SupervisorReportResponse report = reportService.generateSummary();
-        byte[] csv = csvReportService.generate(report);
-        String filename = "supervisor-chw-report-" + LocalDate.now() + ".csv";
+
+        byte[] body = switch (reportFormat) {
+            case PDF -> pdfReportService.generate(report);
+            case EXCEL -> excelReportService.generate(report);
+            case CSV -> csvReportService.generate(report);
+        };
+
+        String filename = "supervisor-report-" + LocalDate.now() + "." + reportFormat.fileExtension;
         return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType("text/csv"))
+                .contentType(reportFormat.contentType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment().filename(filename).build().toString())
-                .body(csv);
+                .body(body);
     }
 }

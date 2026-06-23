@@ -17,7 +17,10 @@ import com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository;
 import com.nelly.hivtbmonitoringsystem.repository.FacilityRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SupervisorRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
+import com.nelly.hivtbmonitoringsystem.validation.BusinessRuleException;
+import com.nelly.hivtbmonitoringsystem.validation.UniquenessValidator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,12 +42,12 @@ public class UserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final UniquenessValidator uniquenessValidator;
 
     @Transactional
     public StaffResponse createChw(CreateChwRequest req) {
-        if (userRepository.existsByEmail(req.getEmail())) {
-            throw new RuntimeException("Email already in use: " + req.getEmail());
-        }
+        uniquenessValidator.ensureUnique("email", "email address", req.getEmail(),
+                userRepository.existsByEmail(req.getEmail()));
         Facility facility = findFacility(req.getFacilityId());
         String tempPassword = generateTempPassword();
 
@@ -88,9 +91,8 @@ public class UserManagementService {
 
     @Transactional
     public StaffResponse createProvider(CreateProviderRequest req) {
-        if (userRepository.existsByEmail(req.getEmail())) {
-            throw new RuntimeException("Email already in use: " + req.getEmail());
-        }
+        uniquenessValidator.ensureUnique("email", "email address", req.getEmail(),
+                userRepository.existsByEmail(req.getEmail()));
         Facility facility = findFacility(req.getFacilityId());
         String tempPassword = generateTempPassword();
 
@@ -132,9 +134,8 @@ public class UserManagementService {
 
     @Transactional
     public StaffResponse createSupervisor(CreateSupervisorRequest req) {
-        if (userRepository.existsByEmail(req.getEmail())) {
-            throw new RuntimeException("Email already in use: " + req.getEmail());
-        }
+        uniquenessValidator.ensureUnique("email", "email address", req.getEmail(),
+                userRepository.existsByEmail(req.getEmail()));
         Facility facility = findFacility(req.getFacilityId());
         String tempPassword = generateTempPassword();
 
@@ -192,7 +193,7 @@ public class UserManagementService {
         boolean wasActive = Boolean.TRUE.equals(user.getIsActive());
         // Prevent deactivating the protected system admin account
         if (wasActive && "admin@hivtb.rw".equals(user.getEmail())) {
-            throw new RuntimeException("The system administrator account cannot be deactivated.");
+            throw new BusinessRuleException("The system administrator account cannot be deactivated.", HttpStatus.FORBIDDEN);
         }
         user.setIsActive(!wasActive);
         userRepository.save(user);
