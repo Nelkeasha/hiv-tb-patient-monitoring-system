@@ -19,27 +19,39 @@ import java.util.List;
 
 /**
  * Shared layout/styling building blocks for every "official PDF" report
- * (Clinical, Admin, Supervisor) so the brand header, section titles,
- * key-value tables, and data tables stay visually identical across reports
- * without each report service re-implementing the same iText/OpenPDF
- * boilerplate.
+ * (Clinical, Admin, Supervisor) so the DMC letterhead, brand header,
+ * section titles, key-value tables, and data tables stay visually identical
+ * across reports without each report service re-implementing the same
+ * iText/OpenPDF boilerplate.
  */
 public class PdfReportBuilder {
 
-    public static final Color BRAND = new Color(0x00, 0x6D, 0x77);
-    public static final Color LIGHT = new Color(0xED, 0xF6, 0xF9);
+    /** DMC brand red — #D12C1F */
+    public static final Color BRAND = new Color(0xD1, 0x2C, 0x1F);
+    /** Light red tint for alternating row backgrounds */
+    public static final Color LIGHT = new Color(0xFD, 0xDC, 0xDA);
+
+    /** Letterhead organisation name displayed in the header band. */
+    private static final String ORG_HEADER_NAME = "Dream Medical Center Hospital";
+    /**
+     * Contact line displayed in the footer band.
+     * Update this string (or externalise to application.properties) to change
+     * the org contact details shown on every generated report.
+     */
+    private static final String ORG_CONTACT_LINE =
+            "Kigali, Rwanda  ·  Tel: +250 XXX XXX XXX  ·  info@dreammedical.rw  ·  www.dreammedical.rw";
 
     private final Document doc;
     private final ByteArrayOutputStream out;
 
-    private final Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, BRAND);
-    private final Font subtitleFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Color.GRAY);
-    private final Font metaFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.GRAY);
-    private final Font sectionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND);
-    private final Font labelFont = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.DARK_GRAY);
-    private final Font valueFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Color.BLACK);
-    private final Font tableHeadFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
-    private final Font tableCellFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.BLACK);
+    private final Font titleFont      = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, BRAND);
+    private final Font subtitleFont   = FontFactory.getFont(FontFactory.HELVETICA, 11, Color.GRAY);
+    private final Font metaFont       = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.GRAY);
+    private final Font sectionFont    = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND);
+    private final Font labelFont      = FontFactory.getFont(FontFactory.HELVETICA, 10, Color.DARK_GRAY);
+    private final Font valueFont      = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Color.BLACK);
+    private final Font tableHeadFont  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Color.WHITE);
+    private final Font tableCellFont  = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.BLACK);
 
     public PdfReportBuilder() {
         try {
@@ -54,6 +66,18 @@ public class PdfReportBuilder {
 
     public PdfReportBuilder header(String subtitle, String metaLine) {
         try {
+            // DMC letterhead header band
+            PdfPTable headerBand = new PdfPTable(1);
+            headerBand.setWidthPercentage(100);
+            headerBand.setSpacingAfter(10);
+            PdfPCell orgCell = new PdfPCell(new Phrase(ORG_HEADER_NAME,
+                    FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Color.WHITE)));
+            orgCell.setBackgroundColor(BRAND);
+            orgCell.setPadding(7);
+            orgCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            headerBand.addCell(orgCell);
+            doc.add(headerBand);
+
             Paragraph title = new Paragraph("HIV/TB MONITORING SYSTEM", titleFont);
             title.setAlignment(Element.ALIGN_CENTER);
             doc.add(title);
@@ -97,7 +121,20 @@ public class PdfReportBuilder {
         try {
             Paragraph footer = new Paragraph(text, metaFont);
             footer.setSpacingBefore(20);
+            footer.setSpacingAfter(8);
             doc.add(footer);
+
+            // DMC letterhead footer band
+            PdfPTable footerBand = new PdfPTable(1);
+            footerBand.setWidthPercentage(100);
+            PdfPCell contactCell = new PdfPCell(new Phrase(ORG_CONTACT_LINE,
+                    FontFactory.getFont(FontFactory.HELVETICA, 8, Color.WHITE)));
+            contactCell.setBackgroundColor(BRAND);
+            contactCell.setPadding(6);
+            contactCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            footerBand.addCell(contactCell);
+            doc.add(footerBand);
+
             return this;
         } catch (Exception e) {
             throw new RuntimeException("Failed to add PDF footer", e);

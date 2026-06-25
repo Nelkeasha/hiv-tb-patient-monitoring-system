@@ -13,13 +13,13 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 /**
  * Shared styling/layout building blocks for every multi-sheet Excel report
- * (Admin, Clinical, Supervisor) — teal-branded section/header rows and the
+ * (Admin, Clinical, Supervisor) — DMC red-branded section/header rows and the
  * sectioned key-value row writer, so each report's Excel service only needs
  * to supply its own data, not re-implement cell styling.
  */
 public class ExcelReportBuilder {
 
-    private static final byte[] BRAND_RGB = {0x00, 0x6D, 0x77};
+    private static final byte[] BRAND_RGB = {(byte)0xD1, (byte)0x2C, (byte)0x1F};
 
     public CellStyle sectionStyle(XSSFWorkbook wb) {
         CellStyle style = wb.createCellStyle();
