@@ -92,12 +92,12 @@ public class AdminReportService {
 
         // ── LTFU stats (replaces stock section) ───────────────────────────────
         long activeLtfuAlerts   = allUnresolved.stream()
-                .filter(a -> a.getAlertType() == AlertType.LTFU_TRACING).count();
+                .filter(a -> a.getAlertType() == AlertType.IIT_ESCALATED).count();
         long ltfuConfirmedAlerts = allUnresolved.stream()
-                .filter(a -> a.getAlertType() == AlertType.LTFU_CONFIRMED).count();
+                .filter(a -> a.getAlertType() == AlertType.TREATMENT_INTERRUPTED).count();
         long escalatedAlerts    = allUnresolved.stream()
                 .filter(a -> a.getSeverity() == AlertSeverity.CRITICAL
-                          && a.getAlertType() == AlertType.LTFU_CONFIRMED).count();
+                          && a.getAlertType() == AlertType.TREATMENT_INTERRUPTED).count();
 
         // ── Per-facility breakdown ────────────────────────────────────────────
         List<Alert> allPatientAlerts = alertRepository.findAll().stream()

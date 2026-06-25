@@ -109,6 +109,8 @@ class PatientServiceTest {
         req.setVillage("Kacyiru");
         req.setSector("Kacyiru");
         req.setHasSmartphone(false);
+        req.setConsentGiven(true);
+        req.setConsentVersion("v1");
         // assignedChwId intentionally left null so the village/caseload tie-break runs.
 
         patientService.registerPatient(req);
@@ -147,6 +149,8 @@ class PatientServiceTest {
         req.setDiagnosisType(DiagnosisType.TB);
         req.setVillage("Remera");
         req.setHasSmartphone(false);
+        req.setConsentGiven(true);
+        req.setConsentVersion("v1");
 
         patientService.registerPatient(req);
 

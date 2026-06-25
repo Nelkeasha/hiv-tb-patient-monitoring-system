@@ -14,6 +14,7 @@ public class TreatmentPlanResponse {
     private UUID id;
     private UUID patientId;
     private String patientName;
+    private UUID medicationId;
     private String medicationName;
     private String dosage;
     private String frequency;

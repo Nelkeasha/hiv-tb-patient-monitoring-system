@@ -24,8 +24,9 @@ public class TreatmentPlan {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
-    @Column(name = "medication_name", nullable = false, length = 100)
-    private String medicationName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "medication_id", nullable = false)
+    private MedicationFormulary medication;
 
     @Column(nullable = false, length = 50)
     private String dosage;

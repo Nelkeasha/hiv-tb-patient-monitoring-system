@@ -28,4 +28,7 @@ public final class ValidationPatterns {
 
     /** Employee code: letters, digits, and hyphens only (e.g. CHW-001). */
     public static final String EMPLOYEE_CODE = "^[A-Za-z0-9-]{3,50}$";
+
+    /** Geohash: standard base32 alphabet (no a/i/l/o), 1-12 chars. The app only ever sends precision-7 (~150m) hashes — never raw coordinates. */
+    public static final String GEOHASH = "^[0-9b-hjkmnp-z]{1,12}$";
 }

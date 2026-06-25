@@ -20,4 +20,5 @@ public class AuthResponse {
     private String email;
     private String role;
     private boolean mustChangePassword;
+    private boolean consentGiven;
 }

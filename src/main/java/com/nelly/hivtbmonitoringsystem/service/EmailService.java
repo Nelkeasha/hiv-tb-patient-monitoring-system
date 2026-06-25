@@ -56,10 +56,10 @@ public class EmailService {
             "— Dream Medical Center HIV/TB Monitoring System");
     }
 
-    // ── LTFU — Stage: CHW_ASSIGNED (day 14) ──────────────────────────────────
+    // ── LTFU — Stage: IIT_ESCALATED (day 14) ─────────────────────────────────
 
     @Async
-    public void sendLtfuChwAssignedAlert(String toEmail, String chwName,
+    public void sendIitEscalatedAlert(String toEmail, String chwName,
                                          String patientName, String patientCode,
                                          String village, int daysSinceMissed) {
         if (!enabled) return;
@@ -78,10 +78,10 @@ public class EmailService {
             "— Dream Medical Center HIV/TB Monitoring System");
     }
 
-    // ── LTFU — Stage: LTFU_CONFIRMED (day 30+) ───────────────────────────────
+    // ── LTFU — Stage: TREATMENT_INTERRUPTED (day 30+) ────────────────────────
 
     @Async
-    public void sendLtfuConfirmedAlert(String toEmail, String recipientName,
+    public void sendTreatmentInterruptedAlert(String toEmail, String recipientName,
                                        String patientName, String patientCode,
                                        String chwName, int daysSinceMissed,
                                        String missedDate) {
@@ -115,6 +115,26 @@ public class EmailService {
             "Please review their medication adherence and schedule a home visit " +
             "as soon as possible.\n\n" +
             "Full adherence history is available on your CHW mobile app.\n\n" +
+            "— Dream Medical Center HIV/TB Monitoring System");
+    }
+
+    // ── Adverse event alerts (grade 3/4 CTCAE) ───────────────────────────────
+
+    @Async
+    public void sendAdverseEventAlert(String toEmail, String recipientName,
+                                      String patientName, String patientCode,
+                                      String chwName, Integer grade, String visitDate) {
+        if (!enabled || grade == null) return;
+        send(toEmail,
+            "🚨 CRITICAL: Grade " + grade + " Adverse Event — " + patientName,
+            "Dear " + recipientName + ",\n\n" +
+            "A grade " + grade + " adverse drug reaction (CTCAE scale) was recorded for " +
+            "patient " + patientName + " (" + patientCode + ") during a home visit on " +
+            visitDate + ".\n\n" +
+            "Recorded by CHW: " + chwName + "\n\n" +
+            "ACTION REQUIRED: Please review this patient's record immediately and confirm " +
+            "a clinical referral has been initiated.\n\n" +
+            "Full visit details are available on the clinical dashboard.\n\n" +
             "— Dream Medical Center HIV/TB Monitoring System");
     }
 

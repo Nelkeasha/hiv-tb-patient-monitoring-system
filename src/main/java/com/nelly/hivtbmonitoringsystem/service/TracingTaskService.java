@@ -73,8 +73,8 @@ public class TracingTaskService {
         task = tracingTaskRepository.save(task);
         auditLogService.log("GENERATE_TRACING_TASK", "tracing_tasks", task.getId());
 
-        // Create LTFU_TRACING alert for the CHW
-        alertService.createLtfuTracingAlert(patient, chw, task, AlertSeverity.WARNING);
+        // Create IIT_ESCALATED alert for the CHW
+        alertService.createIitEscalatedAlert(patient, chw, task, AlertSeverity.WARNING);
 
         log.info("Tracing task generated: patient={} chw={} date={}",
                 patient.getId(), chw.getId(), req.getMissedAppointmentDate());
@@ -92,9 +92,9 @@ public class TracingTaskService {
         task.setStatus(req.getStatus());
         if (req.getNotes() != null) task.setNotes(req.getNotes());
 
-        if ("LTFU_CONFIRMED".equals(req.getStatus()) && task.getLtfuConfirmedAt() == null) {
+        if ("TREATMENT_INTERRUPTED".equals(req.getStatus()) && task.getLtfuConfirmedAt() == null) {
             task.setLtfuConfirmedAt(LocalDateTime.now());
-            alertService.createLtfuConfirmedAlert(task.getPatient(), task.getChw(), task);
+            alertService.createTreatmentInterruptedAlert(task.getPatient(), task.getChw(), task);
         }
 
         task = tracingTaskRepository.save(task);
@@ -148,7 +148,7 @@ public class TracingTaskService {
         }
 
         task = tracingTaskRepository.save(task);
-        alertService.createLtfuConfirmedAlert(task.getPatient(), task.getChw(), task);
+        alertService.createTreatmentInterruptedAlert(task.getPatient(), task.getChw(), task);
         auditLogService.log("ESCALATE_TRACING_TASK", "tracing_tasks", task.getId());
         log.info("Tracing task escalated: id={} supervisor={}", taskId,
                 supervisor != null ? supervisor.getEmail() : "none");
@@ -182,7 +182,7 @@ public class TracingTaskService {
     }
 
     public List<TracingTaskResponse> getLtfuConfirmedTasks() {
-        return tracingTaskRepository.findByStatusOrderByLtfuConfirmedAtDesc("LTFU_CONFIRMED")
+        return tracingTaskRepository.findByStatusOrderByLtfuConfirmedAtDesc("TREATMENT_INTERRUPTED")
                 .stream().map(TracingTaskResponse::from).toList();
     }
 

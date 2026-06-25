@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
  *             (standard monthly ART/TB refill cycle gap).
  *
  * PHASE 2 — Lifecycle progression (updates EXISTING active tasks):
- *   Day  0–13 → LATE          — initial flag, CHW notified
- *   Day 14–29 → CHW_ASSIGNED  — active tracing required, CRITICAL alert
- *   Day 30+   → LTFU_CONFIRMED — officially LTFU per Rwanda national protocol,
- *                                supervisor escalated
+ *   Day  0–14 → LATE                 — initial flag, CHW notified
+ *   Day 15–29 → IIT_ESCALATED        — active tracing required, CRITICAL alert
+ *   Day 30+   → TREATMENT_INTERRUPTED — officially LTFU per Rwanda national protocol,
+ *                                       supervisor escalated
  *
  * All notification channels (in-app, email, FCM) fired via NotificationService.
  */
@@ -52,6 +52,25 @@ public class LtfuScheduler {
 
     /** Monthly ART/TB refill cycle — patient should be seen at least every 28 days. */
     private static final int VISIT_GAP_DAYS = 28;
+
+    /**
+     * Rwanda-MOH administrative/cohort classification thresholds — independent of
+     * the 14/30-day operational clock above. This is the reporting-cohort clock
+     * used for national ART/TB program statistics (WHO/PEPFAR-aligned): a patient
+     * isn't counted as administratively lost until 90 days without contact, and
+     * isn't definitively LOST_TO_FOLLOW_UP for cohort-reporting purposes until 12
+     * months. The operational status (LATE/IIT_ESCALATED/TREATMENT_INTERRUPTED)
+     * drives day-to-day CHW/clinical action; this drives quarterly/annual cohort
+     * reporting and can lag well behind it.
+     */
+    private static final int ADMIN_LATE_DAYS = 90;
+    private static final int ADMIN_LTFU_DAYS = 365;
+
+    private String administrativeClassification(int daysSinceMissed) {
+        if (daysSinceMissed >= ADMIN_LTFU_DAYS) return "LOST_TO_FOLLOW_UP";
+        if (daysSinceMissed >= ADMIN_LATE_DAYS)  return "LATE";
+        return "ON_TIME";
+    }
 
     @Scheduled(cron = "0 0 6 * * *")
     @Transactional
@@ -113,6 +132,7 @@ public class LtfuScheduler {
                     .daysSinceMissed((int) daysSince)
                     .reason("MISSED_APPOINTMENT")
                     .status("LATE")
+                    .administrativeClassification(administrativeClassification((int) daysSince))
                     .proxyAuthorized(false)
                     .build();
 
@@ -187,6 +207,7 @@ public class LtfuScheduler {
                     .daysSinceMissed((int) daysSince)
                     .reason("MISSED_REFILL")
                     .status("LATE")
+                    .administrativeClassification(administrativeClassification((int) daysSince))
                     .proxyAuthorized(false)
                     .build();
 
@@ -210,34 +231,41 @@ public class LtfuScheduler {
 
         for (TracingTask task : activeTasks) {
             int days = (int) ChronoUnit.DAYS.between(task.getMissedAppointmentDate(), today);
-            task.setDaysSinceMissed(Math.max(0, days));
-            boolean changed = false;
+            int clampedDays = Math.max(0, days);
+            // Capture before mutating — comparing the getter to itself after
+            // the setter already ran would always be equal, silently making
+            // the "did this actually change" check below permanently false.
+            boolean changed = !java.util.Objects.equals(task.getDaysSinceMissed(), clampedDays);
+            task.setDaysSinceMissed(clampedDays);
+
+            String newAdminClass = administrativeClassification(clampedDays);
+            if (!newAdminClass.equals(task.getAdministrativeClassification())) {
+                task.setAdministrativeClassification(newAdminClass);
+                changed = true;
+            }
 
             if (days >= 30
-                    && !"LTFU_CONFIRMED".equals(task.getStatus())
+                    && !"TREATMENT_INTERRUPTED".equals(task.getStatus())
                     && !"ESCALATED".equals(task.getStatus())
                     && !"RESOLVED".equals(task.getStatus())) {
 
-                task.setStatus("LTFU_CONFIRMED");
+                task.setStatus("TREATMENT_INTERRUPTED");
                 task.setLtfuConfirmedAt(LocalDateTime.now());
-                notificationService.notifyLtfuConfirmed(task.getPatient(), task.getChw(), task);
+                notificationService.notifyTreatmentInterrupted(task.getPatient(), task.getChw(), task);
                 confirmed++;
                 changed = true;
-                log.info("Patient LTFU confirmed: patient={} days={}", task.getPatient().getId(), days);
+                log.info("Patient treatment interrupted (LTFU confirmed): patient={} days={}", task.getPatient().getId(), days);
 
-            } else if (days >= 14 && "LATE".equals(task.getStatus())) {
+            } else if (days >= 15 && "LATE".equals(task.getStatus())) {
 
-                task.setStatus("CHW_ASSIGNED");
-                notificationService.notifyLtfuChwAssigned(task.getPatient(), task.getChw(), task);
+                task.setStatus("IIT_ESCALATED");
+                notificationService.notifyIitEscalated(task.getPatient(), task.getChw(), task);
                 escalated++;
                 changed = true;
-                log.info("Tracing task → CHW_ASSIGNED: patient={} days={}", task.getPatient().getId(), days);
+                log.info("Tracing task → IIT_ESCALATED: patient={} days={}", task.getPatient().getId(), days);
             }
 
             if (changed) {
-                tracingTaskRepository.save(task);
-                updated++;
-            } else if (task.getDaysSinceMissed() != days) {
                 tracingTaskRepository.save(task);
                 updated++;
             }

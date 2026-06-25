@@ -47,7 +47,7 @@ public class SmsReminderScheduler {
                 continue; // already confirmed/missed for today
             }
 
-            String medication = schedule.getPlan() != null ? schedule.getPlan().getMedicationName() : "your medication";
+            String medication = schedule.getPlan() != null ? schedule.getPlan().getMedication().getName() : "your medication";
             String label = schedule.getDoseLabel() != null ? schedule.getDoseLabel() : "dose";
             String message = "Reminder: time for your " + label + " (" + medication + "). " +
                     "Reply YES once taken, or NO if not. - Dream Medical Center";

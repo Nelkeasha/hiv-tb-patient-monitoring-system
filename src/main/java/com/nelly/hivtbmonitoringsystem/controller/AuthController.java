@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.controller;
 
+import com.nelly.hivtbmonitoringsystem.dto.request.AcceptConsentRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.ChangePasswordRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.LoginRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RefreshTokenRequest;
@@ -44,6 +45,14 @@ public class AuthController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(userDetails.getUsername(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/consent")
+    public ResponseEntity<Void> acceptConsent(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody AcceptConsentRequest request) {
+        authService.acceptConsent(userDetails.getUsername(), request);
         return ResponseEntity.noContent().build();
     }
 

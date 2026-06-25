@@ -5,6 +5,7 @@ import com.nelly.hivtbmonitoringsystem.validation.ValidationMessages;
 import com.nelly.hivtbmonitoringsystem.validation.ValidationPatterns;
 import com.nelly.hivtbmonitoringsystem.validation.constraints.RwandaNationalId;
 import com.nelly.hivtbmonitoringsystem.validation.constraints.RwandaPhone;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
@@ -52,6 +53,10 @@ public class RegisterPatientRequest {
     @Size(max = 255, message = ValidationMessages.HOUSEHOLD_LOCATION_TOO_LONG)
     private String householdLocation;
 
+    /** Geohash computed on-device from a one-time GPS read — the server never receives raw lat/long. */
+    @Pattern(regexp = ValidationPatterns.GEOHASH, message = ValidationMessages.GEOHASH_INVALID)
+    private String locationGeohash;
+
     @NotNull(message = ValidationMessages.DIAGNOSIS_TYPE_REQUIRED)
     private DiagnosisType diagnosisType;
 
@@ -65,4 +70,16 @@ public class RegisterPatientRequest {
      * the system auto-matches a CHW by village/sector (see PatientService#matchChwByLocation).
      */
     private UUID assignedChwId;
+
+    /**
+     * The patient (or guardian) must have given documented consent to data
+     * collection — captured in person at registration — before the record
+     * can be created. Rwanda Law No. 058/2021; HIV/TB status is
+     * special-category sensitive data.
+     */
+    @AssertTrue(message = ValidationMessages.CONSENT_REQUIRED)
+    private boolean consentGiven;
+
+    @NotBlank(message = ValidationMessages.CONSENT_VERSION_REQUIRED)
+    private String consentVersion;
 }

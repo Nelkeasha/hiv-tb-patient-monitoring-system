@@ -111,10 +111,29 @@ public class Patient {
     private LocalDateTime chwAssignmentEscalatedAt;
 
     @Column(name = "registration_status", length = 20)
-    private String registrationStatus = "ACTIVE";
+    private String registrationStatus = "PROVISIONAL";
+
+    /** Geohash-encoded location (precision 7, ~150m cell) — never raw lat/long. */
+    @Column(name = "location_geohash", length = 12)
+    private String locationGeohash;
 
     @Column(name = "referral_id", unique = true, length = 30)
     private String referralId;
+
+    /**
+     * Patient's own documented consent to data collection (Rwanda Law No.
+     * 058/2021) — captured by the registering CHW/clinical staff at the
+     * point of registration, distinct from {@code SystemUser.consentGiven}
+     * which covers an app-account holder agreeing to app terms.
+     */
+    @Column(name = "consent_given", nullable = false)
+    private Boolean consentGiven = false;
+
+    @Column(name = "consent_timestamp")
+    private LocalDateTime consentTimestamp;
+
+    @Column(name = "consent_version", length = 20)
+    private String consentVersion;
 
     @Column(name = "screened_by_chw_id")
     private UUID screenedByChwId;

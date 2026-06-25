@@ -26,6 +26,9 @@ public class HomeVisitResponse {
     private String sideEffectsReported;
     private String psychosocialNotes;
     private LocalDateTime nextVisitDate;
+    private Integer adverseEventGrade;
+    private Boolean referralInitiated;
+    private Integer recordVersion;
     private String syncStatus;
     private LocalDateTime createdAt;
 }

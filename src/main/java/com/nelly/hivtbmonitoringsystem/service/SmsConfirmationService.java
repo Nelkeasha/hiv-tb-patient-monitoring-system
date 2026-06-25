@@ -38,7 +38,7 @@ public class SmsConfirmationService {
     private final DoseScheduleRepository doseScheduleRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
     private final AuditLogService auditLogService;
-    private final AlertService alertService;
+    private final NotificationService notificationService;
 
     public enum SmsResult { CONFIRMED, MISSED, UNRECOGNIZED, PATIENT_NOT_FOUND, NO_ACTIVE_SCHEDULE, ALREADY_CONFIRMED }
 
@@ -152,9 +152,19 @@ public class SmsConfirmationService {
 
         confirmationLogRepository.save(entry);
         auditLogService.log("SMS_MISSED_DOSE", "confirmation_logs", entry.getId());
-        alertService.createMissedDoseAlert(patient, schedule.getPlan());
+        notificationService.notifyMissedDose(patient, schedule.getPlan(), consecutiveMissedStreak(schedule.getId()));
         log.info("SMS callback: missed dose recorded for patient={}", patient.getId());
         return SmsResult.MISSED;
+    }
+
+    /** Walks this dose schedule's log history backward from most recent, counting an unbroken run of misses. */
+    private int consecutiveMissedStreak(java.util.UUID scheduleId) {
+        int streak = 0;
+        for (ConfirmationLog entry : confirmationLogRepository.findByScheduleIdOrderByScheduledDateDescCreatedAtDesc(scheduleId)) {
+            if (!Boolean.TRUE.equals(entry.getIsMissed())) break;
+            streak++;
+        }
+        return streak;
     }
 
     private String normalizePhone(String phone) {

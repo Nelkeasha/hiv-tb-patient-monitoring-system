@@ -65,6 +65,11 @@ public class AiRiskScore {
     @Column(name = "recommended_action", columnDefinition = "TEXT")
     private String recommendedAction;
 
+    /** Snapshot of the patient's confirmation-history count at calculation time — mirrors confirmation_logs.baseline_established's 14-observation gate. */
+    @Builder.Default
+    @Column(name = "baseline_observation_count", nullable = false)
+    private Integer baselineObservationCount = 0;
+
     @Column(name = "calculated_at", updatable = false)
     private LocalDateTime calculatedAt;
 

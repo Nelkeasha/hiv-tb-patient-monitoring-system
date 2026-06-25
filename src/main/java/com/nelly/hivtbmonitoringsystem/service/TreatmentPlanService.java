@@ -7,6 +7,7 @@ import com.nelly.hivtbmonitoringsystem.dto.response.DoseScheduleResponse;
 import com.nelly.hivtbmonitoringsystem.dto.response.TreatmentPlanResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
+import com.nelly.hivtbmonitoringsystem.entity.MedicationFormulary;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
 import com.nelly.hivtbmonitoringsystem.entity.TreatmentPlan;
@@ -15,6 +16,7 @@ import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
+import com.nelly.hivtbmonitoringsystem.repository.MedicationFormularyRepository;
 import com.nelly.hivtbmonitoringsystem.repository.PatientRepository;
 import com.nelly.hivtbmonitoringsystem.repository.SystemUserRepository;
 import com.nelly.hivtbmonitoringsystem.repository.TreatmentPlanRepository;
@@ -36,6 +38,7 @@ public class TreatmentPlanService {
 
     private final TreatmentPlanRepository treatmentPlanRepository;
     private final DoseScheduleRepository doseScheduleRepository;
+    private final MedicationFormularyRepository medicationFormularyRepository;
     private final PatientRepository patientRepository;
     private final SystemUserRepository systemUserRepository;
     private final ChwRepository chwRepository;
@@ -61,9 +64,17 @@ public class TreatmentPlanService {
                     "End date must be after start date");
         }
 
+        MedicationFormulary medication = medicationFormularyRepository.findById(req.getMedicationId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Selected medication was not found in the formulary"));
+        if (!Boolean.TRUE.equals(medication.getIsActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Selected medication is no longer active in the formulary");
+        }
+
         TreatmentPlan plan = TreatmentPlan.builder()
                 .patient(patient)
-                .medicationName(req.getMedicationName())
+                .medication(medication)
                 .dosage(req.getDosage())
                 .frequency(req.getFrequency())
                 .startDate(req.getStartDate())
@@ -95,7 +106,16 @@ public class TreatmentPlanService {
     public TreatmentPlanResponse updatePlan(UUID planId, UpdateTreatmentPlanRequest req) {
         TreatmentPlan plan = findPlan(planId);
 
-        if (req.getMedicationName() != null) plan.setMedicationName(req.getMedicationName());
+        if (req.getMedicationId() != null) {
+            MedicationFormulary medication = medicationFormularyRepository.findById(req.getMedicationId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Selected medication was not found in the formulary"));
+            if (!Boolean.TRUE.equals(medication.getIsActive())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Selected medication is no longer active in the formulary");
+            }
+            plan.setMedication(medication);
+        }
         if (req.getDosage() != null) plan.setDosage(req.getDosage());
         if (req.getFrequency() != null) plan.setFrequency(req.getFrequency());
         if (req.getEndDate() != null) {
@@ -160,6 +180,16 @@ public class TreatmentPlanService {
         DoseSchedule saved = doseScheduleRepository.save(schedule);
         auditLogService.log("DEACTIVATE_DOSE_SCHEDULE", "dose_schedules", saved.getId());
         return toScheduleResponse(saved);
+    }
+
+    public List<com.nelly.hivtbmonitoringsystem.dto.response.MedicationFormularyResponse> getActiveMedications() {
+        return medicationFormularyRepository.findByIsActiveTrue().stream()
+                .map(m -> com.nelly.hivtbmonitoringsystem.dto.response.MedicationFormularyResponse.builder()
+                        .id(m.getId())
+                        .name(m.getName())
+                        .dosageForm(m.getDosageForm())
+                        .build())
+                .toList();
     }
 
     // ── Shared reads (CHW sees own patients only; clinical sees all) ──────────
@@ -249,7 +279,8 @@ public class TreatmentPlanService {
                 .id(plan.getId())
                 .patientId(plan.getPatient().getId())
                 .patientName(plan.getPatient().getFullName())
-                .medicationName(plan.getMedicationName())
+                .medicationId(plan.getMedication().getId())
+                .medicationName(plan.getMedication().getName())
                 .dosage(plan.getDosage())
                 .frequency(plan.getFrequency())
                 .startDate(plan.getStartDate())

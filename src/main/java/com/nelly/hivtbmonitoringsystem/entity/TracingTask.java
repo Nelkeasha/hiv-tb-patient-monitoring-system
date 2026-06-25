@@ -9,8 +9,8 @@ import java.util.UUID;
 
 /**
  * Records each LTFU tracing assignment per the Rwanda national LTFU protocol.
- * Thesis Table 19 — tracks the full lifecycle from LATE → CHW_ASSIGNED →
- * LTFU_CONFIRMED, including disengagement barriers and re-engagement plans.
+ * Thesis Table 19 — tracks the full lifecycle from LATE → IIT_ESCALATED →
+ * TREATMENT_INTERRUPTED, including disengagement barriers and re-engagement plans.
  */
 @Entity
 @Table(name = "tracing_tasks")
@@ -42,13 +42,24 @@ public class TracingTask {
     @Column(name = "reason", nullable = false, length = 30)
     private String reason;
 
-    /** Current lifecycle stage: LATE | CHW_ASSIGNED | RESOLVED | LTFU_CONFIRMED | ESCALATED */
-    @Column(name = "status", nullable = false, length = 20)
+    /** Current lifecycle stage: LATE | IIT_ESCALATED | RESOLVED | TREATMENT_INTERRUPTED | ESCALATED */
+    @Column(name = "status", nullable = false, length = 30)
     private String status = "LATE";
 
     /** Set when daysSinceMissed crosses 30 per Rwanda national LTFU definition. */
     @Column(name = "ltfu_confirmed_at")
     private LocalDateTime ltfuConfirmedAt;
+
+    /**
+     * Rwanda-MOH administrative LTFU category (90-day cohort reporting),
+     * tracked independently of {@code status} (the PEPFAR/IIT-aligned
+     * 28-day operational tracing workflow). The two intentionally diverge —
+     * a task can be IIT_ESCALATED operationally well before it counts as
+     * administratively LOST_TO_FOLLOW_UP.
+     * One of: ON_TIME | LATE | LOST_TO_FOLLOW_UP
+     */
+    @Column(name = "administrative_classification", length = 20)
+    private String administrativeClassification;
 
     /** Result of CHW tracing visit: PATIENT_FOUND | PATIENT_REFUSED |
      *  PATIENT_HOSPITALIZED | PROXY_AUTHORIZED | UNABLE_TO_LOCATE */
@@ -74,7 +85,7 @@ public class TracingTask {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
-    /** Supervisor notified when task reaches LTFU_CONFIRMED. */
+    /** Supervisor notified when task reaches TREATMENT_INTERRUPTED. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "escalated_to")
     private SystemUser escalatedTo;

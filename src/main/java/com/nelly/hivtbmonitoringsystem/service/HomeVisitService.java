@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.RecordVisitRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.UpdateHomeVisitRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.HomeVisitResponse;
 import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.HomeVisit;
@@ -32,6 +33,7 @@ public class HomeVisitService {
     private final SystemUserRepository userRepository;
     private final ChwRepository chwRepository;
     private final AuditLogService auditLogService;
+    private final AlertService alertService;
 
     @Transactional
     public HomeVisitResponse recordVisit(RecordVisitRequest req) {
@@ -76,12 +78,71 @@ public class HomeVisitService {
                 .sideEffectsReported(req.getSideEffectsReported())
                 .psychosocialNotes(req.getPsychosocialNotes())
                 .nextVisitDate(req.getNextVisitDate())
+                .adverseEventGrade(req.getAdverseEventGrade())
+                .referralInitiated(req.getReferralInitiated() != null ? req.getReferralInitiated() : false)
                 .clientRequestId(req.getClientRequestId())
                 .syncStatus(SyncStatus.PENDING)
                 .build();
 
         visitRepository.save(visit);
         auditLogService.log("RECORD_VISIT", "home_visits", visit.getId());
+
+        if (req.getAdverseEventGrade() != null && req.getAdverseEventGrade() >= 3) {
+            alertService.createAdverseEventAlert(patient, chw, visit);
+        }
+
+        return toResponse(visit);
+    }
+
+    /**
+     * Corrects an already-submitted visit. recordVersion must match the row's
+     * current value — a mismatch means someone else updated it since the
+     * caller last read it, so we reject with 409 rather than silently
+     * overwriting their change.
+     */
+    @Transactional
+    public HomeVisitResponse updateVisit(UUID visitId, UpdateHomeVisitRequest req) {
+        Chw chw = resolveCurrentChw();
+        HomeVisit visit = visitRepository.findById(visitId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visit not found: " + visitId));
+        if (!visit.getChw().getId().equals(chw.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: visit not recorded by you");
+        }
+        if (!visit.getRecordVersion().equals(req.getRecordVersion())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This visit was changed since you last loaded it (expected version "
+                            + visit.getRecordVersion() + ", got " + req.getRecordVersion() + "). Reload and retry.");
+        }
+
+        boolean discrepancy = visit.getPillCountDiscrepancy();
+        if (req.getPillCountRecorded() != null && req.getPillCountExpected() != null) {
+            discrepancy = !req.getPillCountRecorded().equals(req.getPillCountExpected());
+        }
+
+        Integer previousGrade = visit.getAdverseEventGrade();
+        visit.setAdherenceStatus(req.getAdherenceStatus());
+        visit.setPillCountRecorded(req.getPillCountRecorded());
+        visit.setPillCountExpected(req.getPillCountExpected());
+        visit.setPillCountDiscrepancy(discrepancy);
+        visit.setSymptomsReported(req.getSymptomsReported());
+        visit.setSideEffectsReported(req.getSideEffectsReported());
+        visit.setPsychosocialNotes(req.getPsychosocialNotes());
+        visit.setNextVisitDate(req.getNextVisitDate());
+        visit.setAdverseEventGrade(req.getAdverseEventGrade());
+        if (req.getReferralInitiated() != null) {
+            visit.setReferralInitiated(req.getReferralInitiated());
+        }
+        visit.setRecordVersion(visit.getRecordVersion() + 1);
+
+        visitRepository.save(visit);
+        auditLogService.log("UPDATE_VISIT", "home_visits", visit.getId());
+
+        boolean enteredSevereRange = req.getAdverseEventGrade() != null && req.getAdverseEventGrade() >= 3
+                && (previousGrade == null || previousGrade < 3);
+        if (enteredSevereRange) {
+            alertService.createAdverseEventAlert(visit.getPatient(), chw, visit);
+        }
+
         return toResponse(visit);
     }
 
@@ -147,6 +208,9 @@ public class HomeVisitService {
                 .sideEffectsReported(v.getSideEffectsReported())
                 .psychosocialNotes(v.getPsychosocialNotes())
                 .nextVisitDate(v.getNextVisitDate())
+                .adverseEventGrade(v.getAdverseEventGrade())
+                .referralInitiated(v.getReferralInitiated())
+                .recordVersion(v.getRecordVersion())
                 .syncStatus(v.getSyncStatus().name())
                 .createdAt(v.getCreatedAt())
                 .build();

@@ -29,6 +29,14 @@ public class TreatmentPlanController {
 
     private final TreatmentPlanService treatmentPlanService;
 
+    // ── Formulary lookup — needed by the create-plan medication dropdown ─────
+
+    @GetMapping("/medications-formulary")
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<List<com.nelly.hivtbmonitoringsystem.dto.response.MedicationFormularyResponse>> getMedicationsFormulary() {
+        return ResponseEntity.ok(treatmentPlanService.getActiveMedications());
+    }
+
     // ── Clinical staff — write ────────────────────────────────────────────────
 
     @PostMapping

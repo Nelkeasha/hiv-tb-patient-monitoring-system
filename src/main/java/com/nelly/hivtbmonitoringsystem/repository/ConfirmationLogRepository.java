@@ -19,6 +19,13 @@ public interface ConfirmationLogRepository extends JpaRepository<ConfirmationLog
     List<ConfirmationLog> findByPatientIdAndAiSuspicionFlagTrue(UUID patientId);
     long countByPatientIdAndIsMissedTrueAndScheduledDateAfter(UUID patientId, LocalDate after);
     java.util.Optional<ConfirmationLog> findByScheduleIdAndScheduledDate(UUID scheduleId, LocalDate date);
+    /**
+     * Most recent first — used to walk backward and count a consecutive-miss
+     * streak for one dose schedule. createdAt is a secondary sort key so two
+     * rows that happen to share a scheduledDate (no DB constraint forbids
+     * this) still sort deterministically instead of in an unspecified order.
+     */
+    List<ConfirmationLog> findByScheduleIdOrderByScheduledDateDescCreatedAtDesc(UUID scheduleId);
     List<ConfirmationLog> findByIsMissedTrueAndScheduledDateBetween(LocalDate from, LocalDate to);
 
     @org.springframework.data.jpa.repository.Query(

@@ -20,9 +20,8 @@ public class CreateTreatmentPlanRequest {
     @NotNull(message = ValidationMessages.PATIENT_ID_REQUIRED)
     private UUID patientId;
 
-    @NotBlank(message = ValidationMessages.MEDICATION_NAME_REQUIRED)
-    @Size(max = 100, message = "Medication name must be at most 100 characters")
-    private String medicationName;
+    @NotNull(message = ValidationMessages.MEDICATION_ID_REQUIRED)
+    private UUID medicationId;
 
     @NotBlank(message = ValidationMessages.DOSAGE_REQUIRED)
     @Size(max = 50, message = "Dosage must be at most 50 characters")

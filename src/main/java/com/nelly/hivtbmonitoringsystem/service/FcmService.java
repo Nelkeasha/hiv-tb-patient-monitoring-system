@@ -35,20 +35,20 @@ public class FcmService {
     }
 
     @Async
-    public void sendLtfuChwAssigned(String fcmToken, String patientName, int daysSinceMissed) {
+    public void sendIitEscalated(String fcmToken, String patientName, int daysSinceMissed) {
         send(fcmToken,
                 "🔴 URGENT Tracing: " + patientName,
                 daysSinceMissed + " days without contact. Conduct home visit immediately.",
-                "LTFU_CHW_ASSIGNED"
+                "IIT_ESCALATED"
         );
     }
 
     @Async
-    public void sendLtfuConfirmed(String fcmToken, String patientName) {
+    public void sendTreatmentInterrupted(String fcmToken, String patientName) {
         send(fcmToken,
                 "🚨 LTFU Confirmed: " + patientName,
                 "Patient officially Lost to Follow-Up. Case escalated to supervisor.",
-                "LTFU_CONFIRMED"
+                "TREATMENT_INTERRUPTED"
         );
     }
 

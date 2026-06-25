@@ -64,6 +64,19 @@ public class HomeVisit {
     @Column(name = "client_request_id")
     private UUID clientRequestId;
 
+    /** CTCAE-style severity grade for any adverse drug reaction observed during the visit, 1-4. Null = none reported. */
+    @Column(name = "adverse_event_grade")
+    private Integer adverseEventGrade;
+
+    @Builder.Default
+    @Column(name = "referral_initiated", nullable = false)
+    private Boolean referralInitiated = false;
+
+    /** Optimistic-locking counter — incremented on every update; mismatched value on write returns 409. */
+    @Builder.Default
+    @Column(name = "record_version", nullable = false)
+    private Integer recordVersion = 0;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "sync_status", columnDefinition = "sync_status")

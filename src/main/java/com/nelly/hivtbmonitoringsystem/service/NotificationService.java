@@ -30,6 +30,7 @@ public class NotificationService {
     private final SmsOutboundService smsOutboundService;
     private final SystemUserRepository userRepository;
     private final com.nelly.hivtbmonitoringsystem.repository.FacilityProviderRepository facilityProviderRepository;
+    private final SystemSettingsService systemSettingsService;
 
     // ── LTFU Events ───────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ public class NotificationService {
      */
     public void notifyLtfuLate(Patient patient, Chw chw, TracingTask task) {
         // 1. In-app alert
-        alertService.createLtfuTracingAlert(patient, chw, task, AlertSeverity.WARNING);
+        alertService.createIitEscalatedAlert(patient, chw, task, AlertSeverity.WARNING);
 
         // 2. Email to CHW
         String chwEmail = chw.getUser().getEmail();
@@ -64,17 +65,17 @@ public class NotificationService {
     }
 
     /**
-     * Fired by LtfuScheduler when task transitions to CHW_ASSIGNED (day 14).
+     * Fired by LtfuScheduler when task transitions to IIT_ESCALATED (day 14).
      * All 3 channels to CHW — marked CRITICAL/URGENT.
      */
-    public void notifyLtfuChwAssigned(Patient patient, Chw chw, TracingTask task) {
+    public void notifyIitEscalated(Patient patient, Chw chw, TracingTask task) {
         // 1. In-app CRITICAL alert
-        alertService.createLtfuTracingAlert(patient, chw, task, AlertSeverity.CRITICAL);
+        alertService.createIitEscalatedAlert(patient, chw, task, AlertSeverity.CRITICAL);
 
         // 2. Email to CHW
         String chwEmail = chw.getUser().getEmail();
         if (chwEmail != null) {
-            emailService.sendLtfuChwAssignedAlert(
+            emailService.sendIitEscalatedAlert(
                     chwEmail,
                     chw.getUser().getFullName(),
                     patient.getFullName(),
@@ -87,24 +88,24 @@ public class NotificationService {
         // 3. FCM priority push to CHW device
         String chwFcmToken = chw.getUser().getFcmToken();
         if (chwFcmToken != null) {
-            fcmService.sendLtfuChwAssigned(chwFcmToken, patient.getFullName(), task.getDaysSinceMissed());
+            fcmService.sendIitEscalated(chwFcmToken, patient.getFullName(), task.getDaysSinceMissed());
         }
 
-        log.info("LTFU CHW_ASSIGNED notification sent: patient={}", patient.getId());
+        log.info("LTFU IIT_ESCALATED notification sent: patient={}", patient.getId());
     }
 
     /**
-     * Fired when a patient is officially LTFU_CONFIRMED (day 30+).
+     * Fired when a patient's treatment is officially confirmed interrupted (day 30+).
      * All 3 channels to CHW + all active supervisors.
      */
-    public void notifyLtfuConfirmed(Patient patient, Chw chw, TracingTask task) {
+    public void notifyTreatmentInterrupted(Patient patient, Chw chw, TracingTask task) {
         // 1. In-app CRITICAL alert
-        alertService.createLtfuConfirmedAlert(patient, chw, task);
+        alertService.createTreatmentInterruptedAlert(patient, chw, task);
 
         // 2. Email + FCM to CHW
         String chwEmail = chw.getUser().getEmail();
         if (chwEmail != null) {
-            emailService.sendLtfuConfirmedAlert(
+            emailService.sendTreatmentInterruptedAlert(
                     chwEmail, chw.getUser().getFullName(),
                     patient.getFullName(), patient.getPatientCode(),
                     chw.getUser().getFullName(),
@@ -114,14 +115,14 @@ public class NotificationService {
         }
         String chwFcm = chw.getUser().getFcmToken();
         if (chwFcm != null) {
-            fcmService.sendLtfuConfirmed(chwFcm, patient.getFullName());
+            fcmService.sendTreatmentInterrupted(chwFcm, patient.getFullName());
         }
 
         // 3. Email + FCM to all active supervisors
         userRepository.findAll().stream()
                 .filter(u -> u.getRole().name().equals("SUPERVISOR") && Boolean.TRUE.equals(u.getIsActive()))
                 .forEach(supervisor -> {
-                    emailService.sendLtfuConfirmedAlert(
+                    emailService.sendTreatmentInterruptedAlert(
                             supervisor.getEmail(),
                             supervisor.getFullName(),
                             patient.getFullName(),
@@ -131,11 +132,11 @@ public class NotificationService {
                             task.getMissedAppointmentDate().toString()
                     );
                     if (supervisor.getFcmToken() != null) {
-                        fcmService.sendLtfuConfirmed(supervisor.getFcmToken(), patient.getFullName());
+                        fcmService.sendTreatmentInterrupted(supervisor.getFcmToken(), patient.getFullName());
                     }
                 });
 
-        log.info("LTFU_CONFIRMED notification sent: patient={}", patient.getId());
+        log.info("TREATMENT_INTERRUPTED notification sent: patient={}", patient.getId());
     }
 
     /**
@@ -177,13 +178,14 @@ public class NotificationService {
     // ── Missed Dose Events ────────────────────────────────────────────────────
 
     /**
-     * Fired by MissedDoseScheduler for every single missed dose.
+     * Fired by MissedDoseScheduler/SmsConfirmationService for every missed dose.
      * CHW gets FCM push immediately for every miss.
-     * CHW gets email only after 3+ consecutive misses (avoids fatigue).
+     * CHW gets email only once the consecutive-miss streak reaches the
+     * admin-configured missed_dose_threshold (avoids fatigue on a single miss).
      */
     public void notifyMissedDose(Patient patient, TreatmentPlan plan, int consecutiveMissed) {
-        // 1. In-app alert always
-        alertService.createMissedDoseAlert(patient, plan);
+        // 1. In-app alert — severity escalates with the streak (see AlertService)
+        alertService.createMissedDoseAlert(patient, plan, consecutiveMissed);
 
         Chw chw = patient.getChw();
         if (chw == null) return;
@@ -191,17 +193,18 @@ public class NotificationService {
         // 2. FCM push for every single missed dose
         String chwFcm = chw.getUser().getFcmToken();
         if (chwFcm != null) {
-            fcmService.sendMissedDoseAlert(chwFcm, patient.getFullName(), plan.getMedicationName());
+            fcmService.sendMissedDoseAlert(chwFcm, patient.getFullName(), plan.getMedication().getName());
         }
 
-        // 3. Email only after 3 consecutive misses
-        if (consecutiveMissed >= 3 && chw.getUser().getEmail() != null) {
+        // 3. Email only once the streak reaches the configured threshold
+        int threshold = systemSettingsService.get().getMissedDoseThreshold();
+        if (consecutiveMissed >= threshold && chw.getUser().getEmail() != null) {
             emailService.sendMissedDoseSummary(
                     chw.getUser().getEmail(),
                     chw.getUser().getFullName(),
                     patient.getFullName(),
                     patient.getPatientCode(),
-                    plan.getMedicationName(),
+                    plan.getMedication().getName(),
                     consecutiveMissed
             );
         }

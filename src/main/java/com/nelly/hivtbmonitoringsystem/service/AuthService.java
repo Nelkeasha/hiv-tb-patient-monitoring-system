@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
+import com.nelly.hivtbmonitoringsystem.dto.request.AcceptConsentRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.ChangePasswordRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.LoginRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RefreshTokenRequest;
@@ -83,6 +84,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole().name())
                 .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
+                .consentGiven(Boolean.TRUE.equals(user.getConsentGiven()))
                 .build();
     }
 
@@ -99,6 +101,19 @@ public class AuthService {
         user.setMustChangePassword(false);
         userRepository.save(user);
         auditLogService.log("CHANGE_PASSWORD", "system_users", user.getId());
+    }
+
+    /** Records that the user agreed to data-collection consent — required before the app unlocks past login. */
+    @Transactional
+    public void acceptConsent(String email, AcceptConsentRequest request) {
+        SystemUser user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setConsentGiven(true);
+        user.setConsentTimestamp(LocalDateTime.now());
+        user.setConsentVersion(request.getConsentVersion());
+        userRepository.save(user);
+        auditLogService.log("ACCEPT_CONSENT", "system_users", user.getId());
     }
 
     @Transactional

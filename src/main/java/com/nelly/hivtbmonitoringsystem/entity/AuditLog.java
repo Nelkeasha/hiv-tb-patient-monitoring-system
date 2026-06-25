@@ -38,11 +38,24 @@ public class AuditLog {
     @Column(columnDefinition = "jsonb")
     private String details;
 
+    /** SHA-256 of this entry's fields + previousHash — tamper-evident chain (V28). Null for entries written before this column existed. */
+    @Column(name = "entry_hash", length = 64)
+    private String entryHash;
+
+    /** entryHash of the chain's previous entry at write time. Null = chain genesis (first entry after V28, or pre-V28 row). */
+    @Column(name = "previous_hash", length = 64)
+    private String previousHash;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        // AuditLogService sets createdAt explicitly before computing the entry's
+        // hash, so the persisted value must match what was hashed — only
+        // default it here if nothing set it.
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }

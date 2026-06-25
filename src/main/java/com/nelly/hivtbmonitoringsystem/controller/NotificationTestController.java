@@ -46,14 +46,14 @@ public class NotificationTestController {
                     java.time.LocalDate.now().minusDays(days).toString(),
                     days
             );
-            case "LTFU_CHW_ASSIGNED" -> emailService.sendLtfuChwAssignedAlert(
+            case "IIT_ESCALATED" -> emailService.sendIitEscalatedAlert(
                     request.getRecipientEmail(),
                     "Test Recipient",
                     patient, code,
                     "Test Village",
                     days
             );
-            case "LTFU_CONFIRMED" -> emailService.sendLtfuConfirmedAlert(
+            case "TREATMENT_INTERRUPTED" -> emailService.sendTreatmentInterruptedAlert(
                     request.getRecipientEmail(),
                     "Test Recipient",
                     patient, code,

@@ -4,8 +4,8 @@ import com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog;
 import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.repository.ConfirmationLogRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
-import com.nelly.hivtbmonitoringsystem.service.AlertService;
 import com.nelly.hivtbmonitoringsystem.service.MedicationRecordService;
+import com.nelly.hivtbmonitoringsystem.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,7 +24,7 @@ public class MissedDoseScheduler {
 
     private final DoseScheduleRepository doseScheduleRepository;
     private final ConfirmationLogRepository confirmationLogRepository;
-    private final AlertService alertService;
+    private final NotificationService notificationService;
     private final MedicationRecordService medicationRecordService;
 
     /**
@@ -66,7 +66,8 @@ public class MissedDoseScheduler {
                         .aiSuspicionFlag(false)
                         .build();
                 confirmationLogRepository.save(missed);
-                alertService.createMissedDoseAlert(schedule.getPatient(), schedule.getPlan());
+                notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(),
+                        consecutiveMissedStreak(schedule.getId()));
                 medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 log.info("Missed dose auto-recorded: patient={} schedule={}",
                         schedule.getPatient().getId(), schedule.getId());
@@ -76,10 +77,21 @@ public class MissedDoseScheduler {
                 if (entry.getConfirmedAt() == null && Boolean.FALSE.equals(entry.getIsMissed())) {
                     entry.setIsMissed(true);
                     confirmationLogRepository.save(entry);
-                    alertService.createMissedDoseAlert(schedule.getPatient(), schedule.getPlan());
+                    notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(),
+                            consecutiveMissedStreak(schedule.getId()));
                     medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 }
             }
         }
+    }
+
+    /** Walks this dose schedule's log history backward from most recent, counting an unbroken run of misses. */
+    private int consecutiveMissedStreak(java.util.UUID scheduleId) {
+        int streak = 0;
+        for (ConfirmationLog entry : confirmationLogRepository.findByScheduleIdOrderByScheduledDateDescCreatedAtDesc(scheduleId)) {
+            if (!Boolean.TRUE.equals(entry.getIsMissed())) break;
+            streak++;
+        }
+        return streak;
     }
 }

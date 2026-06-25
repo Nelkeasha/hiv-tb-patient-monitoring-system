@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.RecordVisitRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.UpdateHomeVisitRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.HomeVisitResponse;
 import com.nelly.hivtbmonitoringsystem.service.HomeVisitService;
 import jakarta.validation.Valid;
@@ -24,6 +25,13 @@ public class HomeVisitController {
     @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
     public ResponseEntity<HomeVisitResponse> recordVisit(@Valid @RequestBody RecordVisitRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(homeVisitService.recordVisit(request));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CHW', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<HomeVisitResponse> updateVisit(@PathVariable UUID id,
+                                                          @Valid @RequestBody UpdateHomeVisitRequest request) {
+        return ResponseEntity.ok(homeVisitService.updateVisit(id, request));
     }
 
     @GetMapping("/patient/{patientId}")

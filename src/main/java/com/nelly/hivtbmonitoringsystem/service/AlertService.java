@@ -33,6 +33,8 @@ public class AlertService {
     private final SystemUserRepository systemUserRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final AuditLogService auditLogService;
+    private final SystemSettingsService systemSettingsService;
+    private final EmailService emailService;
 
     // ── CHW ──────────────────────────────────────────────────────────────────
 
@@ -231,32 +233,89 @@ public class AlertService {
 
     // ── Called internally by MissedDoseScheduler ─────────────────────────────
 
+    /**
+     * No alert for a single isolated miss — only once the same patient has
+     * missed the same dose schedule on two consecutive occasions. Severity
+     * then escalates further with the streak: WARNING below the
+     * admin-configured missed_dose_threshold, CRITICAL once it's reached or
+     * exceeded.
+     */
     @Transactional
-    public void createMissedDoseAlert(Patient patient, TreatmentPlan plan) {
+    public void createMissedDoseAlert(Patient patient, TreatmentPlan plan, int consecutiveMissed) {
+        if (consecutiveMissed < 2) return;
+
+        int threshold = systemSettingsService.get().getMissedDoseThreshold();
+        AlertSeverity severity = consecutiveMissed >= threshold ? AlertSeverity.CRITICAL : AlertSeverity.WARNING;
+
         Alert alert = Alert.builder()
                 .patient(patient)
                 .chw(patient.getChw())
                 .alertType(AlertType.MISSED_DOSE)
-                .severity(AlertSeverity.WARNING)
+                .severity(severity)
                 .title("Missed Dose — " + patient.getFullName())
-                .message(String.format("Patient %s missed their %s dose scheduled for %s.",
+                .message(String.format(
+                        "Patient %s missed their %s dose scheduled for %s. Consecutive misses: %d%s.",
                         patient.getFullName(),
-                        plan.getMedicationName(),
-                        LocalDate.now()))
+                        plan.getMedication().getName(),
+                        LocalDate.now(),
+                        consecutiveMissed,
+                        consecutiveMissed >= threshold ? " (threshold reached — escalated)" : ""))
                 .isRead(false)
                 .isResolved(false)
                 .build();
         broadcast(alertRepository.save(alert));
     }
 
-    // ── Called internally by TracingTaskService ──────────────────────────────
+    // ── Called internally by HomeVisitService ────────────────────────────────
 
+    /** Fired for a CTCAE Grade 3/4 adverse event recorded during a CHW home visit — always CRITICAL. */
     @Transactional
-    public void createLtfuTracingAlert(Patient patient, Chw chw, TracingTask task, AlertSeverity severity) {
+    public void createAdverseEventAlert(Patient patient, Chw chw, HomeVisit visit) {
         Alert alert = Alert.builder()
                 .patient(patient)
                 .chw(chw)
-                .alertType(AlertType.LTFU_TRACING)
+                .alertType(AlertType.ADVERSE_EVENT)
+                .severity(AlertSeverity.CRITICAL)
+                .title("Severe Adverse Event — " + patient.getFullName())
+                .message(String.format(
+                        "Patient %s (%s) reported a Grade %d adverse drug reaction during a home visit on %s. " +
+                        "Immediate clinical review required.",
+                        patient.getFullName(), patient.getPatientCode(),
+                        visit.getAdverseEventGrade(), visit.getVisitDate().toLocalDate()))
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        broadcast(alertRepository.save(alert));
+
+        // CRITICAL severity — also notify Clinical Staff at the patient's facility by
+        // email, not just the in-app/WebSocket broadcast (mirrors the IIT/treatment-
+        // interrupted alert pattern in NotificationService).
+        if (patient.getFacility() != null) {
+            String visitDate = visit.getVisitDate().toLocalDate().toString();
+            facilityProviderRepository.findByFacilityId(patient.getFacility().getId()).forEach(provider -> {
+                SystemUser providerUser = provider.getUser();
+                if (providerUser != null && providerUser.getEmail() != null) {
+                    emailService.sendAdverseEventAlert(
+                            providerUser.getEmail(),
+                            providerUser.getFullName(),
+                            patient.getFullName(),
+                            patient.getPatientCode(),
+                            chw.getUser().getFullName(),
+                            visit.getAdverseEventGrade(),
+                            visitDate);
+                }
+            });
+        }
+    }
+
+    // ── Called internally by TracingTaskService ──────────────────────────────
+
+    @Transactional
+    public void createIitEscalatedAlert(Patient patient, Chw chw, TracingTask task, AlertSeverity severity) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.IIT_ESCALATED)
                 .severity(severity)
                 .title("LTFU Tracing Required — " + patient.getFullName())
                 .message(String.format(
@@ -292,11 +351,11 @@ public class AlertService {
     }
 
     @Transactional
-    public void createLtfuConfirmedAlert(Patient patient, Chw chw, TracingTask task) {
+    public void createTreatmentInterruptedAlert(Patient patient, Chw chw, TracingTask task) {
         Alert alert = Alert.builder()
                 .patient(patient)
                 .chw(chw)
-                .alertType(AlertType.LTFU_CONFIRMED)
+                .alertType(AlertType.TREATMENT_INTERRUPTED)
                 .severity(AlertSeverity.CRITICAL)
                 .title("LTFU Confirmed — " + patient.getFullName())
                 .message(String.format(

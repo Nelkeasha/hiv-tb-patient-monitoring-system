@@ -28,6 +28,7 @@ public class PatientResponse {
     private String district;
     private String province;
     private String cell;
+    private String locationGeohash;
     private UUID chwId;
     private String chwName;
     private UUID facilityId;

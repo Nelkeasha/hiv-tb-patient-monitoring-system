@@ -35,6 +35,7 @@ public final class ValidationMessages {
     public static final String DIAGNOSIS_TYPE_REQUIRED = "Please select a diagnosis type (HIV, TB, or HIV/TB co-infection)";
     public static final String SUSPECTED_CONDITION_INVALID = "Suspected condition must be TB, HIV, or HIV_TB_COINFECTION";
     public static final String HOUSEHOLD_LOCATION_TOO_LONG = "Household location must be at most 255 characters";
+    public static final String GEOHASH_INVALID = "Location data is invalid — please retry GPS capture";
     public static final String VILLAGE_TOO_LONG = "Village must be at most 100 characters";
     public static final String SECTOR_TOO_LONG = "Sector must be at most 100 characters";
     public static final String DISTRICT_TOO_LONG = "District must be at most 100 characters";
@@ -52,13 +53,19 @@ public final class ValidationMessages {
     public static final String ADHERENCE_STATUS_REQUIRED = "Adherence status is required";
     public static final String ADHERENCE_STATUS_INVALID = "Adherence status must be GOOD, PARTIAL, POOR, or MISSED";
     public static final String PILL_COUNT_NEGATIVE = "Pill count cannot be negative";
+    public static final String ADVERSE_EVENT_GRADE_RANGE = "Adverse event grade must be between 1 and 4 (CTCAE scale)";
+    public static final String RECORD_VERSION_REQUIRED = "recordVersion is required — read the current visit first";
+
+    // ── Patient consent (Rwanda Law No. 058/2021) ─────────────────────────────
+    public static final String CONSENT_REQUIRED = "The patient must consent to data collection before this record can be created";
+    public static final String CONSENT_VERSION_REQUIRED = "consentVersion is required";
 
     // ── Referrals ──────────────────────────────────────────────────────────
     public static final String REFERRAL_REASON_REQUIRED = "Please describe the reason for this referral";
     public static final String REFERRAL_URGENCY_REQUIRED = "Please select an urgency level (LOW, MEDIUM, HIGH, or EMERGENCY)";
 
     // ── Treatment plans / medication ──────────────────────────────────────
-    public static final String MEDICATION_NAME_REQUIRED = "Medication name is required";
+    public static final String MEDICATION_ID_REQUIRED = "Please select a medication from the formulary";
     public static final String DOSAGE_REQUIRED = "Dosage is required (e.g. 1 tablet)";
     public static final String FREQUENCY_REQUIRED = "Frequency is required (e.g. once daily)";
     public static final String START_DATE_REQUIRED = "Start date is required";

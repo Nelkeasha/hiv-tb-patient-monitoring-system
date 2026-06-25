@@ -55,6 +55,16 @@ public class SystemUser {
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;
 
+    @Builder.Default
+    @Column(name = "consent_given", nullable = false)
+    private Boolean consentGiven = false;
+
+    @Column(name = "consent_timestamp")
+    private LocalDateTime consentTimestamp;
+
+    @Column(name = "consent_version", length = 20)
+    private String consentVersion;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

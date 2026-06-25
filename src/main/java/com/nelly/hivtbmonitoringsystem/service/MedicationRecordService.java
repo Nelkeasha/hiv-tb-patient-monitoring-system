@@ -33,7 +33,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MedicationRecordService {
 
-    private static final BigDecimal BELOW_THRESHOLD_PCT = BigDecimal.valueOf(80);
+    private static final BigDecimal BELOW_THRESHOLD_PCT = BigDecimal.valueOf(85);
 
     private final MedicationRecordRepository medicationRecordRepository;
     private final DoseScheduleRepository doseScheduleRepository;

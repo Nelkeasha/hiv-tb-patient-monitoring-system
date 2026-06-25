@@ -5,22 +5,22 @@ import com.nelly.hivtbmonitoringsystem.validation.ValidationPatterns;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
+/**
+ * Corrects an already-submitted home visit (e.g. fixing a typo in notes).
+ * Optimistic locking: recordVersion must match the row's current value or
+ * the update is rejected with 409 so a stale edit can't silently clobber
+ * a newer one (e.g. two devices editing the same visit while offline).
+ */
 @Data
-public class RecordVisitRequest {
+public class UpdateHomeVisitRequest {
 
-    @NotNull(message = ValidationMessages.PATIENT_ID_REQUIRED)
-    private UUID patientId;
-
-    @NotNull(message = ValidationMessages.VISIT_DATE_REQUIRED)
-    @Past(message = ValidationMessages.VISIT_DATE_NOT_FUTURE)
-    private LocalDateTime visitDate;
+    @NotNull(message = ValidationMessages.RECORD_VERSION_REQUIRED)
+    private Integer recordVersion;
 
     @NotNull(message = ValidationMessages.ADHERENCE_STATUS_REQUIRED)
     @Pattern(regexp = ValidationPatterns.ADHERENCE_STATUS, message = ValidationMessages.ADHERENCE_STATUS_INVALID)
@@ -37,14 +37,10 @@ public class RecordVisitRequest {
     private String psychosocialNotes;
     private LocalDateTime nextVisitDate;
 
-    /** CTCAE-style severity grade for any adverse drug reaction observed during the visit, 1-4. Null = none reported. */
     @Min(value = 1, message = ValidationMessages.ADVERSE_EVENT_GRADE_RANGE)
     @Max(value = 4, message = ValidationMessages.ADVERSE_EVENT_GRADE_RANGE)
     private Integer adverseEventGrade;
 
     /** Whether the CHW initiated a clinical referral for this visit — expected for grade 3/4 adverse events. */
     private Boolean referralInitiated;
-
-    /** Optional — set by the mobile app's offline outbox so a retried queue-flush is a safe no-op. */
-    private UUID clientRequestId;
 }

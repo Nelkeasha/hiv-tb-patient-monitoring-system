@@ -5,11 +5,11 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Getter @Setter
 public class UpdateTreatmentPlanRequest {
-    @Size(max = 100, message = "Medication name must be at most 100 characters")
-    private String medicationName;
+    private UUID medicationId;
 
     @Size(max = 50, message = "Dosage must be at most 50 characters")
     private String dosage;

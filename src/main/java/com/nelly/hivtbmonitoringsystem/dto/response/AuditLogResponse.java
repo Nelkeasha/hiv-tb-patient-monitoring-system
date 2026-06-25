@@ -18,6 +18,8 @@ public class AuditLogResponse {
     private String ipAddress;
     private String details;
     private LocalDateTime timestamp;
+    private String entryHash;
+    private String previousHash;
 
     public static AuditLogResponse from(AuditLog log) {
         return AuditLogResponse.builder()
@@ -29,6 +31,8 @@ public class AuditLogResponse {
                 .ipAddress(log.getIpAddress())
                 .details(log.getDetails())
                 .timestamp(log.getCreatedAt())
+                .entryHash(log.getEntryHash())
+                .previousHash(log.getPreviousHash())
                 .build();
     }
 }

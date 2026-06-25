@@ -22,6 +22,7 @@ public class TracingTaskResponse {
     private Integer daysSinceMissed;
     private String reason;
     private String status;
+    private String administrativeClassification;
     private LocalDateTime ltfuConfirmedAt;
     private String outcome;
     private String disengagementReason;
@@ -46,6 +47,7 @@ public class TracingTaskResponse {
                 .daysSinceMissed(t.getDaysSinceMissed())
                 .reason(t.getReason())
                 .status(t.getStatus())
+                .administrativeClassification(t.getAdministrativeClassification())
                 .ltfuConfirmedAt(t.getLtfuConfirmedAt())
                 .outcome(t.getOutcome())
                 .disengagementReason(t.getDisengagementReason())

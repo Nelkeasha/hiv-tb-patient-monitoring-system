@@ -67,6 +67,11 @@ public class ConfirmationLog {
     @Column(name = "suspicion_reason", length = 500)
     private String suspicionReason;
 
+    /** True once this patient has accumulated enough confirmation history (>= 14 observations) for anomaly detection to trust their personal baseline rather than a population default. */
+    @Builder.Default
+    @Column(name = "baseline_established", nullable = false)
+    private Boolean baselineEstablished = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

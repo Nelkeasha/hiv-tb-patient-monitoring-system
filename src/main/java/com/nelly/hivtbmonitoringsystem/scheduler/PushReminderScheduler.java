@@ -53,7 +53,7 @@ public class PushReminderScheduler {
                 continue; // patient has no app account or never registered a device
             }
 
-            String medication = schedule.getPlan() != null ? schedule.getPlan().getMedicationName() : "your medication";
+            String medication = schedule.getPlan() != null ? schedule.getPlan().getMedication().getName() : "your medication";
             String label = schedule.getDoseLabel() != null ? schedule.getDoseLabel() : "dose";
 
             fcmService.sendGeneric(

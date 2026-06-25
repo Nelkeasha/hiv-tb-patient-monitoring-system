@@ -26,9 +26,20 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     List<Patient> findByFacilityIdAndIsActiveTrue(UUID facilityId);
     /** "Active patient" for reports/dashboards means confirmed AND active — excludes PROVISIONAL screenings still awaiting confirmation. */
     List<Patient> findByFacilityIdAndIsActiveTrueAndRegistrationStatus(UUID facilityId, String registrationStatus);
-    List<Patient> findByChwIdAndSyncStatus(UUID chwId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
-    long countByFacilityIdAndSyncStatus(UUID facilityId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
-    long countBySyncStatus(com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus);
+    /**
+     * PROVISIONAL patients never get syncStatus=PENDING set in the first place
+     * (it's left null until clinical confirmation), so these three already
+     * exclude them today — the explicit registrationStatus filter here is
+     * defense in depth, so a future caller that relaxes the syncStatus match
+     * (e.g. "!= SYNCED" instead of "== PENDING") can't silently re-include
+     * unconfirmed patients in FHIR sync-pending counts.
+     */
+    List<Patient> findByChwIdAndSyncStatusAndRegistrationStatus(
+            UUID chwId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus, String registrationStatus);
+    long countByFacilityIdAndSyncStatusAndRegistrationStatus(
+            UUID facilityId, com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus, String registrationStatus);
+    long countBySyncStatusAndRegistrationStatus(
+            com.nelly.hivtbmonitoringsystem.enums.SyncStatus syncStatus, String registrationStatus);
     List<Patient> findAllByIsActiveTrue();
     List<Patient> findByIsActiveTrueAndRegistrationStatus(String registrationStatus);
     List<Patient> findByRegistrationStatus(String registrationStatus);

@@ -78,6 +78,7 @@ public class PatientService {
                 .cell(req.getCell())
                 .village(req.getVillage())
                 .householdLocation(req.getHouseholdLocation())
+                .locationGeohash(req.getLocationGeohash())
                 .chw(chw)
                 .facility(chw.getFacility())
                 .registrationRoute("CHW_SCREENING")
@@ -88,8 +89,14 @@ public class PatientService {
                 .suspectedCondition(req.getSuspectedCondition())
                 .screeningSymptoms(symptoms)
                 .screeningNotes(req.getScreeningNotes())
-                .syncStatus(SyncStatus.PENDING)
+                // No syncStatus until clinical staff confirms — a PROVISIONAL
+                // record has no verified diagnosis yet and must not appear as
+                // "pending FHIR sync" alongside real confirmed patients.
+                .syncStatus(null)
                 .isActive(true)
+                .consentGiven(req.isConsentGiven())
+                .consentTimestamp(LocalDateTime.now())
+                .consentVersion(req.getConsentVersion())
                 .build();
 
         patientRepository.save(patient);
@@ -157,6 +164,7 @@ public class PatientService {
                 .cell(req.getCell())
                 .village(req.getVillage())
                 .householdLocation(req.getHouseholdLocation())
+                .locationGeohash(req.getLocationGeohash())
                 .chw(chw)
                 .facility(chw.getFacility())
                 .registrationRoute("FACILITY")
@@ -167,6 +175,9 @@ public class PatientService {
                 .isActive(true)
                 .chwAssignmentStatus("PENDING")
                 .chwAssignedAt(LocalDateTime.now())
+                .consentGiven(req.isConsentGiven())
+                .consentTimestamp(LocalDateTime.now())
+                .consentVersion(req.getConsentVersion())
                 .build();
 
         patientRepository.save(patient);
@@ -332,8 +343,14 @@ public class PatientService {
                 .referralId(referralId)
                 .screenedByChwId(chw.getId())
                 .screenedAt(LocalDateTime.now())
-                .syncStatus(SyncStatus.PENDING)
+                .syncStatus(null)
                 .isActive(true)
+                // Lombok's @Builder ignores the field initializer unless
+                // @Builder.Default is present, so this must be set explicitly
+                // or consentGiven lands as NULL and violates the NOT NULL
+                // constraint on patients.consent_given (V29). This route has no
+                // consent-capture step of its own, so default to not-consented.
+                .consentGiven(false)
                 .build();
 
         patientRepository.save(patient);
@@ -484,11 +501,12 @@ public class PatientService {
                 .district(p.getDistrict())
                 .province(p.getProvince())
                 .cell(p.getCell())
+                .locationGeohash(p.getLocationGeohash())
                 .chwId(p.getChw().getId())
                 .chwName(p.getChw().getUser().getFullName())
                 .facilityId(p.getFacility().getId())
                 .facilityName(p.getFacility().getName())
-                .syncStatus(p.getSyncStatus().name())
+                .syncStatus(p.getSyncStatus() != null ? p.getSyncStatus().name() : null)
                 .isActive(p.getIsActive())
                 .createdAt(p.getCreatedAt())
                 .loginEmail(loginEmail)

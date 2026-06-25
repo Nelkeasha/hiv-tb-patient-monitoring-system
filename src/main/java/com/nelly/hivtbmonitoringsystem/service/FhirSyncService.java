@@ -49,7 +49,7 @@ public class FhirSyncService {
         Chw chw = resolveChw(user);
         UUID chwId = chw.getId();
 
-        int pp  = patientRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
+        int pp  = patientRepository.findByChwIdAndSyncStatusAndRegistrationStatus(chwId, SyncStatus.PENDING, "CONFIRMED").size();
         int phv = homeVisitRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
         int pmr = medicationRecordRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
         int ptp = treatmentPlanRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
@@ -132,7 +132,7 @@ public class FhirSyncService {
 
         UUID facilityId = provider.getFacility().getId();
 
-        long pp  = patientRepository.countByFacilityIdAndSyncStatus(facilityId, SyncStatus.PENDING);
+        long pp  = patientRepository.countByFacilityIdAndSyncStatusAndRegistrationStatus(facilityId, SyncStatus.PENDING, "CONFIRMED");
         long phv = homeVisitRepository.countByFacilityIdAndSyncStatus(facilityId, SyncStatus.PENDING);
         long pmr = medicationRecordRepository.countByFacilityIdAndSyncStatus(facilityId, SyncStatus.PENDING);
         long ptp = treatmentPlanRepository.countByFacilityIdAndSyncStatus(facilityId, SyncStatus.PENDING);
@@ -194,7 +194,7 @@ public class FhirSyncService {
     }
 
     private SyncPendingResponse buildPendingResponse(UUID chwId) {
-        int pp  = patientRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
+        int pp  = patientRepository.findByChwIdAndSyncStatusAndRegistrationStatus(chwId, SyncStatus.PENDING, "CONFIRMED").size();
         int phv = homeVisitRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
         int pmr = medicationRecordRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
         int ptp = treatmentPlanRepository.findByChwIdAndSyncStatus(chwId, SyncStatus.PENDING).size();
@@ -208,7 +208,7 @@ public class FhirSyncService {
     }
 
     private SyncPendingResponse buildPendingResponseSystemWide() {
-        long pp  = patientRepository.countBySyncStatus(SyncStatus.PENDING);
+        long pp  = patientRepository.countBySyncStatusAndRegistrationStatus(SyncStatus.PENDING, "CONFIRMED");
         long phv = homeVisitRepository.countBySyncStatus(SyncStatus.PENDING);
         long pmr = medicationRecordRepository.countBySyncStatus(SyncStatus.PENDING);
         long ptp = treatmentPlanRepository.countBySyncStatus(SyncStatus.PENDING);
@@ -222,7 +222,7 @@ public class FhirSyncService {
     }
 
     private SyncTriggerResponse triggerSyncSystemWide() {
-        long pp  = patientRepository.countBySyncStatus(SyncStatus.PENDING);
+        long pp  = patientRepository.countBySyncStatusAndRegistrationStatus(SyncStatus.PENDING, "CONFIRMED");
         long phv = homeVisitRepository.countBySyncStatus(SyncStatus.PENDING);
         long pmr = medicationRecordRepository.countBySyncStatus(SyncStatus.PENDING);
         long ptp = treatmentPlanRepository.countBySyncStatus(SyncStatus.PENDING);
