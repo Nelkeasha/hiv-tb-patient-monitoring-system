@@ -4,6 +4,7 @@ import com.lowagie.text.Document;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -14,19 +15,20 @@ import com.lowagie.text.pdf.PdfWriter;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
 
 public class PdfReportBuilder {
 
-    // ── DMC brand palette ────────────────────────────────────────────────────
-    /** Primary brand orange  #D9643A */
-    public static final Color BRAND       = new Color(0xD9, 0x64, 0x3A);
-    /** Darker orange for sub-elements  #C9552F */
-    public static final Color BRAND_DARK  = new Color(0xC9, 0x55, 0x2F);
-    /** Very light orange tint for alternating rows  #FEF0EB */
-    public static final Color BRAND_LIGHT = new Color(0xFE, 0xF0, 0xEB);
+    // ── DMC brand palette — exact pixel values from dmc-logo.png ────────────
+    /** Primary logo orange  #E74A2E */
+    public static final Color BRAND       = new Color(0xE7, 0x4A, 0x2E);
+    /** Dark logo brown (bottom bar of logo)  #853C30 */
+    public static final Color BRAND_DARK  = new Color(0x85, 0x3C, 0x30);
+    /** Very light orange tint for alternating rows  #FDE8E4 */
+    public static final Color BRAND_LIGHT = new Color(0xFD, 0xE8, 0xE4);
     /** Near-black body text  #2C2C2C */
     public static final Color TEXT_DARK   = new Color(0x2C, 0x2C, 0x2C);
     /** Mid-grey secondary text  #6B7280 */
@@ -34,18 +36,18 @@ public class PdfReportBuilder {
     /** Light border colour  #E9E9E9 */
     public static final Color BORDER      = new Color(0xE9, 0xE9, 0xE9);
 
-    // ── Letterhead strings ───────────────────────────────────────────────────
-    private static final String ORG_NAME    = "DREAM MEDICAL CENTER HOSPITAL";
-    private static final String ORG_MOTTO   = "Where Science and Faith meet to bring healing";
-    private static final String ORG_ADDRESS = "Kigali, Kicukiro, Rwanda";
-    private static final String ORG_PHONE   = "+250 782 749 660";
+    // ── Letterhead strings (from official DMC letterhead) ────────────────────
+    private static final String ORG_FULL    = "DREAM MEDICAL CENTER (DMC) HOSPITAL";
+    private static final String ORG_MOTTO   = "\"Where Science and Faith meet to bring healing\"";
+    private static final String ORG_ADDRESS = "P.O.Box 6737 Kigali, KK 541 St Kagarama, Kicukiro-Bugesera Rd";
+    private static final String ORG_TEL     = "Tel: +250 782 749 660 / +250 783 942 211";
     private static final String ORG_EMAIL   = "info@dreammedicalcenter.rw";
     private static final String ORG_WEB     = "www.dreammedicalcenter.rw";
     private static final String SYS_NAME    = "HIV/TB Patient Monitoring System";
 
     // ── Font definitions ─────────────────────────────────────────────────────
-    private final Font orgNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 15, Color.WHITE);
-    private final Font mottoFont     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, new Color(0xFF, 0xE8, 0xD9));
+    private final Font orgNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND);
+    private final Font mottoFont     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, TEXT_GREY);
     private final Font sysNameFont   = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.WHITE);
     private final Font titleFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, BRAND);
     private final Font metaFont      = FontFactory.getFont(FontFactory.HELVETICA, 8, TEXT_GREY);
@@ -72,65 +74,96 @@ public class PdfReportBuilder {
 
     public PdfReportBuilder header(String subtitle, String metaLine) {
         try {
-            // ── Top letterhead band ──────────────────────────────────────────
-            PdfPTable top = new PdfPTable(1);
-            top.setWidthPercentage(100);
-            top.setSpacingAfter(0);
+            // ── Top orange stripe (thin) ─────────────────────────────────────
+            PdfPTable topStripe = new PdfPTable(1);
+            topStripe.setWidthPercentage(100);
+            topStripe.setSpacingAfter(0);
+            PdfPCell stripe = new PdfPCell();
+            stripe.setBackgroundColor(BRAND);
+            stripe.setFixedHeight(4f);
+            stripe.setBorder(Rectangle.NO_BORDER);
+            topStripe.addCell(stripe);
+            doc.add(topStripe);
 
-            PdfPCell nameCell = new PdfPCell();
-            nameCell.setBackgroundColor(BRAND);
-            nameCell.setPadding(10);
-            nameCell.setPaddingBottom(4);
-            nameCell.setBorder(Rectangle.NO_BORDER);
-            nameCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            // ── Logo + org identity row ─────────────────────────────────────
+            PdfPTable logoRow = new PdfPTable(new float[]{1f, 2f});
+            logoRow.setWidthPercentage(100);
+            logoRow.setSpacingAfter(0);
+            logoRow.setSpacingBefore(0);
 
-            Paragraph namePara = new Paragraph(ORG_NAME, orgNameFont);
-            namePara.setAlignment(Element.ALIGN_CENTER);
-            nameCell.addElement(namePara);
+            // Logo cell (left)
+            PdfPCell logoCell = new PdfPCell();
+            logoCell.setBorder(Rectangle.NO_BORDER);
+            logoCell.setPadding(8);
+            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            try (InputStream is = getClass().getResourceAsStream("/static/dmc-logo.png")) {
+                if (is != null) {
+                    Image logo = Image.getInstance(is.readAllBytes());
+                    logo.scaleToFit(130, 54);
+                    logo.setAlignment(Element.ALIGN_LEFT);
+                    logoCell.addElement(logo);
+                } else {
+                    // Fallback: text-only if logo resource missing
+                    logoCell.addElement(new Paragraph(ORG_FULL, orgNameFont));
+                }
+            } catch (Exception ignored) {
+                logoCell.addElement(new Paragraph(ORG_FULL, orgNameFont));
+            }
+            logoRow.addCell(logoCell);
 
-            Paragraph mottoPara = new Paragraph(ORG_MOTTO, mottoFont);
-            mottoPara.setAlignment(Element.ALIGN_CENTER);
-            nameCell.addElement(mottoPara);
-            top.addCell(nameCell);
+            // Org details cell (right)
+            PdfPCell detailCell = new PdfPCell();
+            detailCell.setBorder(Rectangle.NO_BORDER);
+            detailCell.setPadding(8);
+            detailCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
+            Paragraph orgFull = new Paragraph(ORG_FULL, orgNameFont);
+            orgFull.setAlignment(Element.ALIGN_RIGHT);
+            detailCell.addElement(orgFull);
+
+            Paragraph motto = new Paragraph(ORG_MOTTO, mottoFont);
+            motto.setAlignment(Element.ALIGN_RIGHT);
+            detailCell.addElement(motto);
+
+            Paragraph contact = new Paragraph(ORG_ADDRESS + "\n" + ORG_TEL + "  ·  " + ORG_EMAIL + "  ·  " + ORG_WEB, metaFont);
+            contact.setAlignment(Element.ALIGN_RIGHT);
+            contact.setSpacingBefore(3);
+            detailCell.addElement(contact);
+
+            logoRow.addCell(detailCell);
+            doc.add(logoRow);
+
+            // ── Bottom orange stripe ─────────────────────────────────────────
+            PdfPTable botStripe = new PdfPTable(1);
+            botStripe.setWidthPercentage(100);
+            botStripe.setSpacingAfter(10);
+            PdfPCell bot = new PdfPCell();
+            bot.setBackgroundColor(BRAND_DARK);
+            bot.setFixedHeight(2.5f);
+            bot.setBorder(Rectangle.NO_BORDER);
+            botStripe.addCell(bot);
+            doc.add(botStripe);
+
+            // ── System name sub-header ───────────────────────────────────────
+            PdfPTable sysRow = new PdfPTable(1);
+            sysRow.setWidthPercentage(100);
+            sysRow.setSpacingAfter(12);
             PdfPCell sysCell = new PdfPCell();
-            sysCell.setBackgroundColor(BRAND_DARK);
+            sysCell.setBackgroundColor(BRAND);
             sysCell.setPadding(5);
             sysCell.setBorder(Rectangle.NO_BORDER);
             sysCell.setHorizontalAlignment(Element.ALIGN_CENTER);
             sysCell.addElement(new Paragraph(SYS_NAME, sysNameFont));
-            top.addCell(sysCell);
+            sysRow.addCell(sysCell);
+            doc.add(sysRow);
 
-            doc.add(top);
-
-            // Contact strip
-            PdfPTable contact = new PdfPTable(3);
-            contact.setWidthPercentage(100);
-            contact.setSpacingAfter(14);
-            contact.setSpacingBefore(0);
-            String[] contactItems = {
-                ORG_ADDRESS + "  ·  " + ORG_PHONE,
-                ORG_EMAIL,
-                ORG_WEB,
-            };
-            for (String item : contactItems) {
-                PdfPCell c = new PdfPCell(new Phrase(item, metaFont));
-                c.setBorder(Rectangle.NO_BORDER);
-                c.setBackgroundColor(new Color(0xF9, 0xF9, 0xF9));
-                c.setPadding(4);
-                c.setHorizontalAlignment(Element.ALIGN_CENTER);
-                contact.addCell(c);
-            }
-            doc.add(contact);
-
-            // Report title
+            // ── Report title + separator ─────────────────────────────────────
             Paragraph rTitle = new Paragraph(subtitle.toUpperCase(), titleFont);
             rTitle.setAlignment(Element.ALIGN_CENTER);
             rTitle.setSpacingBefore(4);
             rTitle.setSpacingAfter(4);
             doc.add(rTitle);
 
-            // Orange separator line
             PdfPTable sep = new PdfPTable(1);
             sep.setWidthPercentage(60);
             sep.setSpacingAfter(8);
@@ -194,7 +227,7 @@ public class PdfReportBuilder {
             // Footer contact band
             PdfPTable footBand = new PdfPTable(1);
             footBand.setWidthPercentage(100);
-            String footText = ORG_NAME + "  ·  " + ORG_ADDRESS + "  ·  " + ORG_PHONE + "  ·  " + ORG_WEB;
+            String footText = ORG_FULL + "  ·  " + ORG_ADDRESS + "  ·  " + ORG_TEL + "  ·  " + ORG_WEB;
             PdfPCell footCell = new PdfPCell(new Phrase(footText, footerFont));
             footCell.setBackgroundColor(BRAND_DARK);
             footCell.setPadding(6);
