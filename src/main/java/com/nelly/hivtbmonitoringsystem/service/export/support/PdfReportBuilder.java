@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.service.export.support;
 
 import com.lowagie.text.Document;
+import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
 import com.lowagie.text.FontFactory;
@@ -9,8 +10,13 @@ import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
 import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.ColumnText;
+import com.lowagie.text.pdf.PdfContentByte;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfPageEventHelper;
+import com.lowagie.text.pdf.PdfTemplate;
 import com.lowagie.text.pdf.PdfWriter;
 
 import java.awt.Color;
@@ -22,162 +28,134 @@ import java.util.List;
 
 public class PdfReportBuilder {
 
-    // ── DMC brand palette — exact pixel values from dmc-logo.png ────────────
-    /** Primary logo orange  #E74A2E */
-    public static final Color BRAND       = new Color(0xE7, 0x4A, 0x2E);
-    /** Dark logo brown (bottom bar of logo)  #853C30 */
-    public static final Color BRAND_DARK  = new Color(0x85, 0x3C, 0x30);
-    /** Very light orange tint for alternating rows  #FDE8E4 */
-    public static final Color BRAND_LIGHT = new Color(0xFD, 0xE8, 0xE4);
-    /** Near-black body text  #2C2C2C */
-    public static final Color TEXT_DARK   = new Color(0x2C, 0x2C, 0x2C);
-    /** Mid-grey secondary text  #6B7280 */
-    public static final Color TEXT_GREY   = new Color(0x6B, 0x72, 0x80);
-    /** Light border colour  #E9E9E9 */
-    public static final Color BORDER      = new Color(0xE9, 0xE9, 0xE9);
+    // ── DMC brand palette — from official DMC letterhead HTML reference ──────
+    public static final Color BRAND       = new Color(0xE0, 0x70, 0x4D); // #E0704D coral-orange
+    public static final Color BRAND_DEEP  = new Color(0xC9, 0x55, 0x2F); // #C9552F terracotta
+    public static final Color BRAND_BROWN = new Color(0x5E, 0x2A, 0x1E); // #5E2A1E deep brown
+    public static final Color TINT        = new Color(0xFB, 0xED, 0xE7); // #FBEDE7 table header
+    public static final Color ALT_ROW     = new Color(0xFB, 0xFB, 0xFB); // #FBFBFB alt rows
+    public static final Color TEXT_DARK   = new Color(0x2C, 0x2C, 0x2C); // #2C2C2C
+    public static final Color TEXT_GREY   = new Color(0x6B, 0x72, 0x80); // #6B7280
+    public static final Color BORDER      = new Color(0xE2, 0xE2, 0xE2); // #E2E2E2
+    public static final Color SUCCESS     = new Color(0x2E, 0x7D, 0x32); // #2E7D32
+    public static final Color WARNING_CLR = new Color(0xB2, 0x6A, 0x00); // #B26A00
+    public static final Color DANGER      = new Color(0xC0, 0x39, 0x2B); // #C0392B
 
-    // ── Letterhead strings (from official DMC letterhead) ────────────────────
-    private static final String ORG_FULL    = "DREAM MEDICAL CENTER (DMC) HOSPITAL";
-    private static final String ORG_MOTTO   = "\"Where Science and Faith meet to bring healing\"";
-    private static final String ORG_ADDRESS = "P.O.Box 6737 Kigali, KK 541 St Kagarama, Kicukiro-Bugesera Rd";
-    private static final String ORG_TEL     = "Tel: +250 782 749 660 / +250 783 942 211";
+    // ── Organisation strings ─────────────────────────────────────────────────
+    private static final String ORG_FULL    = "Dream Medical Center (DMC) Hospital";
+    private static final String ORG_MOTTO   = "“Where Science and Faith meet to bring healing”";
+    private static final String ORG_ADDRESS = "P.O. Box 6737 Kigali · KK 541 St Kagarama, Kicukiro–Bugesera Rd";
+    private static final String ORG_TEL     = "+250 782 749 660 / +250 783 942 211";
     private static final String ORG_EMAIL   = "info@dreammedicalcenter.rw";
     private static final String ORG_WEB     = "www.dreammedicalcenter.rw";
-    private static final String SYS_NAME    = "HIV/TB Patient Monitoring System";
+    private static final String SYS_NAME    = "HIV / TB Patient Monitoring System";
 
-    // ── Font definitions ─────────────────────────────────────────────────────
-    private final Font orgNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BRAND);
-    private final Font mottoFont     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 7, TEXT_GREY);
-    private final Font sysNameFont   = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.WHITE);
-    private final Font titleFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, BRAND);
-    private final Font metaFont      = FontFactory.getFont(FontFactory.HELVETICA, 8, TEXT_GREY);
-    private final Font sectionFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, BRAND);
-    private final Font labelFont     = FontFactory.getFont(FontFactory.HELVETICA, 9, TEXT_GREY);
-    private final Font valueFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, TEXT_DARK);
-    private final Font tableHeadFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Color.WHITE);
-    private final Font tableCellFont = FontFactory.getFont(FontFactory.HELVETICA, 8, TEXT_DARK);
-    private final Font footerFont    = FontFactory.getFont(FontFactory.HELVETICA, 7, Color.WHITE);
+    // ── Fonts ────────────────────────────────────────────────────────────────
+    private final Font orgNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  13f, BRAND_DEEP);
+    private final Font sysNameFont   = FontFactory.getFont(FontFactory.HELVETICA,         8f, TEXT_GREY);
+    private final Font mottoFont     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8f, BRAND_BROWN);
+    private final Font titleFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   13f, TEXT_DARK);
+    private final Font metaValFont   = FontFactory.getFont(FontFactory.HELVETICA,         8f, TEXT_GREY);
+    private final Font metaKeyFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    8f, TEXT_DARK);
+    private final Font sectionFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   10f, BRAND_DEEP);
+    private final Font labelFont     = FontFactory.getFont(FontFactory.HELVETICA,        8.5f, TEXT_GREY);
+    private final Font valueFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  8.5f, TEXT_DARK);
+    private final Font tableHeadFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    8f, BRAND_BROWN);
+    private final Font tableCellFont = FontFactory.getFont(FontFactory.HELVETICA,         8f, TEXT_DARK);
+    private final Font sigNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    9f, TEXT_DARK);
+    private final Font sigRoleFont   = FontFactory.getFont(FontFactory.HELVETICA,         8f, TEXT_GREY);
+    private final Font noteFont      = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8f, TEXT_GREY);
 
     private final Document doc;
     private final ByteArrayOutputStream out;
+    private final PdfWriter writer;
 
     public PdfReportBuilder() {
         try {
-            this.out = new ByteArrayOutputStream();
-            this.doc = new Document(PageSize.A4, 44, 44, 56, 50);
-            PdfWriter.getInstance(doc, out);
+            this.out    = new ByteArrayOutputStream();
+            this.doc    = new Document(PageSize.A4, 44f, 44f, 52f, 72f);
+            this.writer = PdfWriter.getInstance(doc, out);
+            writer.setPageEvent(new FooterPageEvent());
             doc.open();
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialise PDF document", e);
         }
     }
 
-    public PdfReportBuilder header(String subtitle, String metaLine) {
+    // ── Public API ───────────────────────────────────────────────────────────
+
+    /**
+     * @param reportTitle Report name shown large on the right (e.g. "Official Facility Clinical Report")
+     * @param metaLine    Meta text; pipe-separated segments are rendered on separate lines
+     *                    (e.g. "Dream Medical Center — Kigali | Generated: 26 Jun 2026, 09:14")
+     */
+    public PdfReportBuilder header(String reportTitle, String metaLine) {
         try {
-            // ── Top orange stripe (thin) ─────────────────────────────────────
-            PdfPTable topStripe = new PdfPTable(1);
-            topStripe.setWidthPercentage(100);
-            topStripe.setSpacingAfter(0);
-            PdfPCell stripe = new PdfPCell();
-            stripe.setBackgroundColor(BRAND);
-            stripe.setFixedHeight(4f);
-            stripe.setBorder(Rectangle.NO_BORDER);
-            topStripe.addCell(stripe);
-            doc.add(topStripe);
+            // 2-column letterhead: left = logo + brand text  |  right = doc-meta
+            PdfPTable hdr = new PdfPTable(new float[]{1.2f, 1f});
+            hdr.setWidthPercentage(100);
+            hdr.setSpacingAfter(0);
 
-            // ── Logo + org identity row ─────────────────────────────────────
-            PdfPTable logoRow = new PdfPTable(new float[]{1f, 2f});
-            logoRow.setWidthPercentage(100);
-            logoRow.setSpacingAfter(0);
-            logoRow.setSpacingBefore(0);
+            // ── Left cell: real logo + sub-brand text ──────────────────────
+            PdfPCell leftCell = new PdfPCell();
+            leftCell.setBorder(Rectangle.NO_BORDER);
+            leftCell.setPadding(6);
+            leftCell.setVerticalAlignment(Element.ALIGN_TOP);
 
-            // Logo cell (left)
-            PdfPCell logoCell = new PdfPCell();
-            logoCell.setBorder(Rectangle.NO_BORDER);
-            logoCell.setPadding(8);
-            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            boolean logoLoaded = false;
             try (InputStream is = getClass().getResourceAsStream("/static/dmc-logo.png")) {
                 if (is != null) {
                     Image logo = Image.getInstance(is.readAllBytes());
-                    logo.scaleToFit(130, 54);
+                    logo.scaleToFit(148, 61);
                     logo.setAlignment(Element.ALIGN_LEFT);
-                    logoCell.addElement(logo);
-                } else {
-                    // Fallback: text-only if logo resource missing
-                    logoCell.addElement(new Paragraph(ORG_FULL, orgNameFont));
+                    leftCell.addElement(logo);
+                    logoLoaded = true;
                 }
-            } catch (Exception ignored) {
-                logoCell.addElement(new Paragraph(ORG_FULL, orgNameFont));
+            } catch (Exception ignored) {}
+
+            if (!logoLoaded) {
+                Paragraph fallback = new Paragraph(ORG_FULL, orgNameFont);
+                leftCell.addElement(fallback);
             }
-            logoRow.addCell(logoCell);
 
-            // Org details cell (right)
-            PdfPCell detailCell = new PdfPCell();
-            detailCell.setBorder(Rectangle.NO_BORDER);
-            detailCell.setPadding(8);
-            detailCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-
-            Paragraph orgFull = new Paragraph(ORG_FULL, orgNameFont);
-            orgFull.setAlignment(Element.ALIGN_RIGHT);
-            detailCell.addElement(orgFull);
+            Paragraph sub = new Paragraph(SYS_NAME, sysNameFont);
+            sub.setSpacingBefore(4);
+            leftCell.addElement(sub);
 
             Paragraph motto = new Paragraph(ORG_MOTTO, mottoFont);
-            motto.setAlignment(Element.ALIGN_RIGHT);
-            detailCell.addElement(motto);
+            motto.setSpacingBefore(2);
+            leftCell.addElement(motto);
 
-            Paragraph contact = new Paragraph(ORG_ADDRESS + "\n" + ORG_TEL + "  ·  " + ORG_EMAIL + "  ·  " + ORG_WEB, metaFont);
-            contact.setAlignment(Element.ALIGN_RIGHT);
-            contact.setSpacingBefore(3);
-            detailCell.addElement(contact);
+            hdr.addCell(leftCell);
 
-            logoRow.addCell(detailCell);
-            doc.add(logoRow);
+            // ── Right cell: report title + meta block ──────────────────────
+            PdfPCell rightCell = new PdfPCell();
+            rightCell.setBorder(Rectangle.NO_BORDER);
+            rightCell.setPadding(6);
+            rightCell.setVerticalAlignment(Element.ALIGN_TOP);
 
-            // ── Bottom orange stripe ─────────────────────────────────────────
-            PdfPTable botStripe = new PdfPTable(1);
-            botStripe.setWidthPercentage(100);
-            botStripe.setSpacingAfter(10);
-            PdfPCell bot = new PdfPCell();
-            bot.setBackgroundColor(BRAND_DARK);
-            bot.setFixedHeight(2.5f);
-            bot.setBorder(Rectangle.NO_BORDER);
-            botStripe.addCell(bot);
-            doc.add(botStripe);
+            Paragraph rTitle = new Paragraph(reportTitle.toUpperCase(), titleFont);
+            rTitle.setAlignment(Element.ALIGN_RIGHT);
+            rTitle.setSpacingAfter(7);
+            rightCell.addElement(rTitle);
 
-            // ── System name sub-header ───────────────────────────────────────
-            PdfPTable sysRow = new PdfPTable(1);
-            sysRow.setWidthPercentage(100);
-            sysRow.setSpacingAfter(12);
-            PdfPCell sysCell = new PdfPCell();
-            sysCell.setBackgroundColor(BRAND);
-            sysCell.setPadding(5);
-            sysCell.setBorder(Rectangle.NO_BORDER);
-            sysCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            sysCell.addElement(new Paragraph(SYS_NAME, sysNameFont));
-            sysRow.addCell(sysCell);
-            doc.add(sysRow);
+            if (metaLine != null) {
+                for (String seg : metaLine.split("\\|")) {
+                    String trimmed = seg.trim();
+                    if (!trimmed.isEmpty()) {
+                        Paragraph mPara = new Paragraph(trimmed, metaValFont);
+                        mPara.setAlignment(Element.ALIGN_RIGHT);
+                        rightCell.addElement(mPara);
+                    }
+                }
+            }
 
-            // ── Report title + separator ─────────────────────────────────────
-            Paragraph rTitle = new Paragraph(subtitle.toUpperCase(), titleFont);
-            rTitle.setAlignment(Element.ALIGN_CENTER);
-            rTitle.setSpacingBefore(4);
-            rTitle.setSpacingAfter(4);
-            doc.add(rTitle);
+            hdr.addCell(rightCell);
+            doc.add(hdr);
 
-            PdfPTable sep = new PdfPTable(1);
-            sep.setWidthPercentage(60);
-            sep.setSpacingAfter(8);
-            PdfPCell sepCell = new PdfPCell();
-            sepCell.setBackgroundColor(BRAND);
-            sepCell.setFixedHeight(2f);
-            sepCell.setBorder(Rectangle.NO_BORDER);
-            sep.addCell(sepCell);
-            doc.add(sep);
-
-            Paragraph meta = new Paragraph(metaLine, metaFont);
-            meta.setAlignment(Element.ALIGN_CENTER);
-            meta.setSpacingAfter(18);
-            doc.add(meta);
+            // ── Terracotta band + thin rule ───────────────────────────────
+            addBand(BRAND_DEEP, 5f, 8f, 0f);
+            addBand(BORDER,     1f, 0f, 14f);
 
             return this;
         } catch (Exception e) {
@@ -187,7 +165,7 @@ public class PdfReportBuilder {
 
     public PdfReportBuilder section(String title, String[][] kvRows) {
         try {
-            doc.add(sectionTitle(title));
+            addSectionTitle(title);
             doc.add(kvTable(kvRows));
             return this;
         } catch (Exception e) {
@@ -197,7 +175,7 @@ public class PdfReportBuilder {
 
     public PdfReportBuilder dataTable(String title, String[] headers, List<String[]> rows, String emptyMessage) {
         try {
-            doc.add(sectionTitle(title));
+            addSectionTitle(title);
             doc.add(buildDataTable(headers, rows, emptyMessage));
             return this;
         } catch (Exception e) {
@@ -205,40 +183,57 @@ public class PdfReportBuilder {
         }
     }
 
-    public PdfReportBuilder footer(String text) {
+    /** Renders a clinical sign-off block with two signature lines and a stamp box. */
+    public PdfReportBuilder signOff(String preparedBy, String reviewedBy) {
         try {
-            Paragraph notes = new Paragraph(text, metaFont);
-            notes.setSpacingBefore(20);
-            notes.setSpacingAfter(6);
-            doc.add(notes);
+            PdfPTable sigTable = new PdfPTable(new float[]{1f, 1f, 0.55f});
+            sigTable.setWidthPercentage(100);
+            sigTable.setSpacingBefore(28);
 
-            // Thin orange separator
-            PdfPTable line = new PdfPTable(1);
-            line.setWidthPercentage(100);
-            line.setSpacingBefore(14);
-            line.setSpacingAfter(0);
-            PdfPCell lineCell = new PdfPCell();
-            lineCell.setBackgroundColor(BRAND);
-            lineCell.setFixedHeight(1.5f);
-            lineCell.setBorder(Rectangle.NO_BORDER);
-            line.addCell(lineCell);
-            doc.add(line);
+            sigTable.addCell(buildSigCol("Prepared by", preparedBy));
+            sigTable.addCell(buildSigCol("Reviewed by", reviewedBy));
 
-            // Footer contact band
-            PdfPTable footBand = new PdfPTable(1);
-            footBand.setWidthPercentage(100);
-            String footText = ORG_FULL + "  ·  " + ORG_ADDRESS + "  ·  " + ORG_TEL + "  ·  " + ORG_WEB;
-            PdfPCell footCell = new PdfPCell(new Phrase(footText, footerFont));
-            footCell.setBackgroundColor(BRAND_DARK);
-            footCell.setPadding(6);
-            footCell.setBorder(Rectangle.NO_BORDER);
-            footCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            footBand.addCell(footCell);
-            doc.add(footBand);
+            // Stamp box
+            PdfPCell stampOuter = new PdfPCell();
+            stampOuter.setBorder(Rectangle.NO_BORDER);
+            stampOuter.setPaddingLeft(12);
 
+            PdfPTable stampBox = new PdfPTable(1);
+            stampBox.setWidthPercentage(100);
+            PdfPCell box = new PdfPCell(new Phrase("Official DMC Stamp",
+                    FontFactory.getFont(FontFactory.HELVETICA, 8f, new Color(0xCF, 0xCF, 0xCF))));
+            box.setFixedHeight(76);
+            box.setBorderColor(BORDER);
+            box.setBorderWidth(1.2f);
+            box.setHorizontalAlignment(Element.ALIGN_CENTER);
+            box.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            stampBox.addCell(box);
+            stampOuter.addElement(stampBox);
+            sigTable.addCell(stampOuter);
+
+            doc.add(sigTable);
             return this;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to add PDF footer", e);
+            throw new RuntimeException("Failed to add sign-off", e);
+        }
+    }
+
+    /**
+     * Adds an optional notes paragraph before the document is closed.
+     * The actual footer band (contact, confidential, page number) is rendered
+     * automatically on every page by FooterPageEvent.
+     */
+    public PdfReportBuilder footer(String notes) {
+        try {
+            if (notes != null && !notes.isEmpty()) {
+                Paragraph p = new Paragraph(notes, noteFont);
+                p.setSpacingBefore(20);
+                p.setSpacingAfter(4);
+                doc.add(p);
+            }
+            return this;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add PDF footer notes", e);
         }
     }
 
@@ -249,44 +244,62 @@ public class PdfReportBuilder {
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private Paragraph sectionTitle(String text) {
-        Paragraph p = new Paragraph(text, sectionFont);
-        p.setSpacingBefore(16);
-        p.setSpacingAfter(6);
-        return p;
+    private void addBand(Color color, float height, float spacingBefore, float spacingAfter)
+            throws DocumentException {
+        PdfPTable band = new PdfPTable(1);
+        band.setWidthPercentage(100);
+        band.setSpacingBefore(spacingBefore);
+        band.setSpacingAfter(spacingAfter);
+        PdfPCell cell = new PdfPCell();
+        cell.setBackgroundColor(color);
+        cell.setFixedHeight(height);
+        cell.setBorder(Rectangle.NO_BORDER);
+        band.addCell(cell);
+        doc.add(band);
     }
 
+    private void addSectionTitle(String text) throws DocumentException {
+        Paragraph p = new Paragraph(text.toUpperCase(), sectionFont);
+        p.setSpacingBefore(16);
+        p.setSpacingAfter(4);
+        doc.add(p);
+        addBand(BORDER, 1f, 0f, 6f);
+    }
+
+    /** Two-column definition grid: key (muted, left) | value (bold, right) */
     private PdfPTable kvTable(String[][] rows) {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
         try { table.setWidths(new float[]{2.5f, 1f}); } catch (Exception ignored) {}
-        boolean shaded = false;
+        boolean alt = false;
         for (String[] row : rows) {
-            PdfPCell labelCell = new PdfPCell(new Phrase(row[0], labelFont));
-            PdfPCell valueCell = new PdfPCell(new Phrase(row.length > 1 ? row[1] : "-", valueFont));
-            for (PdfPCell c : new PdfPCell[]{labelCell, valueCell}) {
-                c.setPadding(6);
+            PdfPCell keyCell = new PdfPCell(new Phrase(row[0], labelFont));
+            PdfPCell valCell = new PdfPCell(new Phrase(row.length > 1 ? row[1] : "—", valueFont));
+            for (PdfPCell c : new PdfPCell[]{keyCell, valCell}) {
+                c.setPadding(5.5f);
                 c.setBorderColor(BORDER);
-                c.setBackgroundColor(shaded ? BRAND_LIGHT : Color.WHITE);
+                c.setBackgroundColor(alt ? TINT : Color.WHITE);
             }
-            valueCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            table.addCell(labelCell);
-            table.addCell(valueCell);
-            shaded = !shaded;
+            valCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            table.addCell(keyCell);
+            table.addCell(valCell);
+            alt = !alt;
         }
         return table;
     }
 
+    /** Data table: TINT header row with BRAND_BROWN bold text; alternating body rows */
     private PdfPTable buildDataTable(String[] headers, List<String[]> rows, String emptyMessage) {
         PdfPTable table = new PdfPTable(headers.length);
         table.setWidthPercentage(100);
 
+        // Header row
         for (String h : headers) {
             PdfPCell cell = new PdfPCell(new Phrase(h, tableHeadFont));
-            cell.setBackgroundColor(BRAND);
-            cell.setPadding(5);
-            cell.setBorder(Rectangle.NO_BORDER);
-            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setBackgroundColor(TINT);
+            cell.setPadding(7);
+            cell.setBorderColor(BORDER);
+            cell.setHorizontalAlignment(Element.ALIGN_LEFT);
             table.addCell(cell);
         }
 
@@ -294,29 +307,130 @@ public class PdfReportBuilder {
             PdfPCell empty = new PdfPCell(new Phrase(emptyMessage, tableCellFont));
             empty.setColspan(headers.length);
             empty.setPadding(10);
+            empty.setBorderColor(BORDER);
             empty.setHorizontalAlignment(Element.ALIGN_CENTER);
             table.addCell(empty);
             return table;
         }
 
-        boolean shaded = false;
+        boolean alt = false;
         for (String[] row : rows) {
             for (String v : row) {
-                PdfPCell cell = new PdfPCell(new Phrase(v != null ? v : "-", tableCellFont));
-                cell.setPadding(5);
+                PdfPCell cell = new PdfPCell(new Phrase(v != null ? v : "—", tableCellFont));
+                cell.setPadding(6);
                 cell.setBorderColor(BORDER);
-                cell.setBackgroundColor(shaded ? BRAND_LIGHT : Color.WHITE);
+                cell.setBackgroundColor(alt ? ALT_ROW : Color.WHITE);
                 table.addCell(cell);
             }
-            shaded = !shaded;
+            alt = !alt;
         }
         return table;
     }
+
+    private PdfPCell buildSigCol(String label, String nameAndRole) {
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setPaddingRight(14);
+
+        // Space above signature line
+        Paragraph space = new Paragraph(" ");
+        space.setSpacingBefore(36);
+        cell.addElement(space);
+
+        // Signature rule
+        PdfPTable rule = new PdfPTable(1);
+        rule.setWidthPercentage(100);
+        PdfPCell ruleLine = new PdfPCell();
+        ruleLine.setFixedHeight(1.4f);
+        ruleLine.setBackgroundColor(TEXT_DARK);
+        ruleLine.setBorder(Rectangle.NO_BORDER);
+        rule.addCell(ruleLine);
+        cell.addElement(rule);
+
+        // Label
+        Paragraph lbl = new Paragraph(label + ":", sigRoleFont);
+        lbl.setSpacingBefore(4);
+        cell.addElement(lbl);
+
+        // Name / role string
+        if (nameAndRole != null && !nameAndRole.isEmpty()) {
+            cell.addElement(new Paragraph(nameAndRole, sigNameFont));
+        } else {
+            Paragraph blank = new Paragraph("____________________", sigRoleFont);
+            cell.addElement(blank);
+        }
+        return cell;
+    }
+
+    // ── Static utilities ─────────────────────────────────────────────────────
 
     public static String formatPct(BigDecimal pct) {
         if (pct == null) return "0%";
         return pct.setScale(1, RoundingMode.HALF_UP) + "%";
     }
 
-    public static String nullSafe(String s) { return s != null ? s : "-"; }
+    public static String nullSafe(String s) { return s != null ? s : "—"; }
+
+    // ── Page footer event ────────────────────────────────────────────────────
+
+    /** Renders the contact-info footer band + page number on every page. */
+    private class FooterPageEvent extends PdfPageEventHelper {
+
+        private PdfTemplate totalPagesTemplate;
+
+        @Override
+        public void onOpenDocument(PdfWriter writer, Document document) {
+            totalPagesTemplate = writer.getDirectContent().createTemplate(28, 10);
+        }
+
+        @Override
+        public void onEndPage(PdfWriter w, Document d) {
+            try {
+                PdfContentByte cb = w.getDirectContent();
+                float pageW  = d.getPageSize().getWidth();
+                float left   = d.leftMargin();
+                float usable = pageW - d.leftMargin() - d.rightMargin();
+                float bandY  = d.bottomMargin() - 46f;
+
+                // Terracotta band
+                cb.setColorFill(BRAND_DEEP);
+                cb.rectangle(left, bandY + 24f, usable, 4f);
+                cb.fill();
+
+                // Contact line
+                Font fContact = FontFactory.getFont(FontFactory.HELVETICA, 7f, TEXT_GREY);
+                String contact = ORG_FULL + "  ·  " + ORG_ADDRESS
+                        + "  ·  " + ORG_TEL + "  ·  " + ORG_WEB;
+                ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
+                        new Phrase(contact, fContact), left + usable / 2f, bandY + 15f, 0);
+
+                // Confidential line
+                Font fConf = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7f, BRAND_DEEP);
+                ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
+                        new Phrase("CONFIDENTIAL — Patient Health Information", fConf),
+                        left + usable / 2f, bandY + 5f, 0);
+
+                // Page number (left-aligned total-pages template, right-aligned page)
+                Font fPage = FontFactory.getFont(FontFactory.HELVETICA, 7f, TEXT_GREY);
+                Phrase pagePhrase = new Phrase("Page " + w.getPageNumber() + " of ", fPage);
+                ColumnText.showTextAligned(cb, Element.ALIGN_RIGHT,
+                        pagePhrase, left + usable - 20f, bandY + 5f, 0);
+                cb.addTemplate(totalPagesTemplate, left + usable - 20f, bandY + 5f);
+
+            } catch (Exception ignored) {}
+        }
+
+        @Override
+        public void onCloseDocument(PdfWriter w, Document d) {
+            try {
+                BaseFont bf = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, false);
+                totalPagesTemplate.beginText();
+                totalPagesTemplate.setFontAndSize(bf, 7f);
+                totalPagesTemplate.setColorFill(TEXT_GREY);
+                totalPagesTemplate.setTextMatrix(0, 1f);
+                totalPagesTemplate.showText(String.valueOf(w.getPageNumber() - 1));
+                totalPagesTemplate.endText();
+            } catch (Exception ignored) {}
+        }
+    }
 }
