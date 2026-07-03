@@ -17,6 +17,9 @@ public interface FhirSyncLogRepository extends JpaRepository<FhirSyncLog, UUID> 
     List<FhirSyncLog> findByChwIdOrderBySyncStartedAtDesc(UUID chwId);
     List<FhirSyncLog> findAllByOrderBySyncStartedAtDesc();
 
+    /** Sessions still IN_PROGRESS that were started before the given cutoff — i.e. stale/orphaned. */
+    List<FhirSyncLog> findBySyncStatusAndSyncStartedAtBefore(String syncStatus, LocalDateTime cutoff);
+
     @Query("SELECT MAX(l.syncCompletedAt) FROM FhirSyncLog l " +
            "WHERE l.chw.facility.id = :facilityId AND l.syncStatus = 'COMPLETED'")
     Optional<LocalDateTime> findLastCompletedSyncForFacility(@Param("facilityId") UUID facilityId);
