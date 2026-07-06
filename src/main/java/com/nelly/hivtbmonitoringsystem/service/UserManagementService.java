@@ -182,14 +182,14 @@ public class UserManagementService {
 
     public UserSummaryResponse getUserById(UUID userId) {
         SystemUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new BusinessRuleException("User not found.", HttpStatus.NOT_FOUND));
         return toSummary(user);
     }
 
     @Transactional
     public UserSummaryResponse toggleUserStatus(UUID userId) {
         SystemUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new BusinessRuleException("User not found.", HttpStatus.NOT_FOUND));
         boolean wasActive = Boolean.TRUE.equals(user.getIsActive());
         // Prevent deactivating the protected system admin account
         if (wasActive && "admin@hivtb.rw".equals(user.getEmail())) {
@@ -204,7 +204,7 @@ public class UserManagementService {
     @Transactional
     public UserSummaryResponse unlockUser(UUID userId) {
         SystemUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new BusinessRuleException("User not found.", HttpStatus.NOT_FOUND));
         user.setAccountLocked(false);
         user.setFailedLoginAttempts(0);
         userRepository.save(user);
@@ -229,7 +229,7 @@ public class UserManagementService {
     @Transactional
     public StaffResponse resetPassword(UUID userId) {
         SystemUser user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new BusinessRuleException("User not found.", HttpStatus.NOT_FOUND));
         String tempPassword = generateTempPassword();
         user.setPasswordHash(passwordEncoder.encode(tempPassword));
         user.setMustChangePassword(true);
@@ -259,7 +259,7 @@ public class UserManagementService {
 
     private Facility findFacility(UUID facilityId) {
         return facilityRepository.findById(facilityId)
-                .orElseThrow(() -> new RuntimeException("Facility not found: " + facilityId));
+                .orElseThrow(() -> new BusinessRuleException("Facility not found.", HttpStatus.NOT_FOUND));
     }
 
     private String generateTempPassword() {

@@ -7,6 +7,7 @@ import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.HomeVisit;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
+import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import com.nelly.hivtbmonitoringsystem.repository.ChwRepository;
 import com.nelly.hivtbmonitoringsystem.repository.HomeVisitRepository;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,6 +36,7 @@ public class HomeVisitService {
     private final ChwRepository chwRepository;
     private final AuditLogService auditLogService;
     private final AlertService alertService;
+    private final HomeVisitTaskService homeVisitTaskService;
 
     @Transactional
     public HomeVisitResponse recordVisit(RecordVisitRequest req) {
@@ -46,9 +49,31 @@ public class HomeVisitService {
 
         Chw chw = resolveCurrentChw();
         Patient patient = patientRepository.findById(req.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found: " + req.getPatientId()));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found."));
         if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new RuntimeException("Access denied: patient not assigned to you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This patient is not assigned to you.");
+        }
+
+        // Diagnosis-adaptive gating: Card B (DOT/TB) fields only for TB / co-infection,
+        // Card A (ART pill count + side effects) only for HIV / co-infection. Reject mismatches.
+        DiagnosisType dt = patient.getDiagnosisType();
+        boolean isTb  = dt == DiagnosisType.TB || dt == DiagnosisType.HIV_TB_COINFECTION;
+        boolean isHiv = dt == DiagnosisType.HIV || dt == DiagnosisType.HIV_TB_COINFECTION;
+
+        boolean tbFieldsPresent = req.getDotObserved() != null || hasAnyTrue(req.getTbSideEffects())
+                || req.getHomeVentilationOk() != null || req.getCoughHygieneOk() != null
+                || req.getNextDotDate() != null;
+        if (tbFieldsPresent && !isTb) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Directly Observed Therapy and TB fields only apply to a TB or HIV/TB co-infected patient.");
+        }
+        if (hasAnyTrue(req.getArtSideEffects()) && !isHiv) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ART side-effect fields only apply to an HIV or HIV/TB co-infected patient.");
+        }
+        if ((req.getPillCountRecorded() != null || req.getPillCountExpected() != null) && !isHiv) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Pill-count monitoring applies to HIV/ART patients. Record Directly Observed Therapy for TB instead.");
         }
 
         boolean anyStructuredSymptom =
@@ -59,6 +84,11 @@ public class HomeVisitService {
                 tf(req.getSideEffectRash()) || tf(req.getSideEffectDizziness());
         boolean hasObservation =
                 anyStructuredSymptom ||
+                (req.getDotObserved()         != null) ||
+                hasAnyTrue(req.getTbSideEffects()) ||
+                hasAnyTrue(req.getArtSideEffects()) ||
+                (req.getHomeVentilationOk()   != null) ||
+                (req.getCoughHygieneOk()      != null) ||
                 (req.getPillCountRecorded()   != null) ||
                 (req.getAdverseEventGrade()   != null) ||
                 (req.getSymptomsReported()    != null && !req.getSymptomsReported().isBlank()) ||
@@ -101,6 +131,13 @@ public class HomeVisitService {
                 .nextVisitDate(req.getNextVisitDate())
                 .adverseEventGrade(req.getAdverseEventGrade())
                 .referralInitiated(req.getReferralInitiated() != null ? req.getReferralInitiated() : false)
+                // Differentiated DOT model (V33) — already gated by diagnosis above
+                .dotObserved(req.getDotObserved())
+                .tbSideEffects(req.getTbSideEffects())
+                .artSideEffects(req.getArtSideEffects())
+                .homeVentilationOk(req.getHomeVentilationOk())
+                .coughHygieneOk(req.getCoughHygieneOk())
+                .nextDotDate(req.getNextDotDate())
                 .clientRequestId(req.getClientRequestId())
                 .syncStatus(SyncStatus.PENDING)
                 .build();
@@ -108,6 +145,11 @@ public class HomeVisitService {
         visitRepository.save(visit);
         auditLogService.log("RECORD_VISIT", "home_visits", visit.getId());
 
+        // A recorded in-person visit closes any triggered tasks for this patient.
+        homeVisitTaskService.completeOpenTasksForPatient(patient.getId(), visit.getId());
+
+        // A severe adverse event opens a NEW follow-up task (created after the
+        // completion sweep above, so it survives).
         if (req.getAdverseEventGrade() != null && req.getAdverseEventGrade() >= 3) {
             alertService.createAdverseEventAlert(patient, chw, visit);
         }
@@ -125,9 +167,9 @@ public class HomeVisitService {
     public HomeVisitResponse updateVisit(UUID visitId, UpdateHomeVisitRequest req) {
         Chw chw = resolveCurrentChw();
         HomeVisit visit = visitRepository.findById(visitId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visit not found: " + visitId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visit not found."));
         if (!visit.getChw().getId().equals(chw.getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied: visit not recorded by you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This visit was not recorded by you.");
         }
         if (!visit.getRecordVersion().equals(req.getRecordVersion())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -185,9 +227,9 @@ public class HomeVisitService {
     public List<HomeVisitResponse> getVisitsForPatient(UUID patientId) {
         Chw chw = resolveCurrentChw();
         Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient not found: " + patientId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found."));
         if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new RuntimeException("Access denied: patient not assigned to you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This patient is not assigned to you.");
         }
         return visitRepository.findByPatientIdOrderByVisitDateDesc(patientId)
                 .stream().map(this::toResponse).collect(Collectors.toList());
@@ -211,9 +253,9 @@ public class HomeVisitService {
     public HomeVisitResponse getVisit(UUID visitId) {
         Chw chw = resolveCurrentChw();
         HomeVisit visit = visitRepository.findById(visitId)
-                .orElseThrow(() -> new RuntimeException("Visit not found: " + visitId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Visit not found."));
         if (!visit.getChw().getId().equals(chw.getId())) {
-            throw new RuntimeException("Access denied: visit not recorded by you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This visit was not recorded by you.");
         }
         return toResponse(visit);
     }
@@ -221,6 +263,11 @@ public class HomeVisitService {
     /** Null-safe truthiness for an optional Boolean flag from the request. */
     private static boolean tf(Boolean b) {
         return b != null && b;
+    }
+
+    /** True if a JSONB toggle map has at least one true value. */
+    private static boolean hasAnyTrue(Map<String, Boolean> m) {
+        return m != null && m.values().stream().anyMatch(Boolean.TRUE::equals);
     }
 
     /**
@@ -236,9 +283,11 @@ public class HomeVisitService {
     private Chw resolveCurrentChw() {
         String email = SecurityUtil.getCurrentUserEmail();
         SystemUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session is no longer valid. Please sign in again."));
         return chwRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("CHW profile not found for user: " + email));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Your CHW profile could not be found. Contact your administrator."));
     }
 
     private HomeVisitResponse toResponse(HomeVisit v) {
@@ -272,6 +321,13 @@ public class HomeVisitService {
                 .nextVisitDate(v.getNextVisitDate())
                 .adverseEventGrade(v.getAdverseEventGrade())
                 .referralInitiated(v.getReferralInitiated())
+                .dotObserved(v.getDotObserved())
+                .tbSideEffects(v.getTbSideEffects())
+                .artSideEffects(v.getArtSideEffects())
+                .homeVentilationOk(v.getHomeVentilationOk())
+                .coughHygieneOk(v.getCoughHygieneOk())
+                .nextDotDate(v.getNextDotDate())
+                .homeVisitTrigger(v.getHomeVisitTrigger())
                 .recordVersion(v.getRecordVersion())
                 .syncStatus(v.getSyncStatus().name())
                 .createdAt(v.getCreatedAt())

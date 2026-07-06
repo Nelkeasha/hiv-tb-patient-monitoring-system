@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.entity.*;
 import com.nelly.hivtbmonitoringsystem.enums.AlertSeverity;
 import com.nelly.hivtbmonitoringsystem.repository.*;
 import com.nelly.hivtbmonitoringsystem.service.AlertService;
+import com.nelly.hivtbmonitoringsystem.service.HomeVisitTaskService;
 import com.nelly.hivtbmonitoringsystem.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +50,7 @@ public class LtfuScheduler {
     private final PatientRepository patientRepository;
     private final AlertService alertService;
     private final NotificationService notificationService;
+    private final HomeVisitTaskService homeVisitTaskService;
 
     /** Monthly ART/TB refill cycle — patient should be seen at least every 28 days. */
     private static final int VISIT_GAP_DAYS = 28;
@@ -260,6 +262,8 @@ public class LtfuScheduler {
 
                 task.setStatus("IIT_ESCALATED");
                 notificationService.notifyIitEscalated(task.getPatient(), task.getChw(), task);
+                homeVisitTaskService.createTask(task.getPatient(), HomeVisitTaskService.IIT_ESCALATED,
+                        "Treatment-interruption tracing escalated (" + days + " days late)");
                 escalated++;
                 changed = true;
                 log.info("Tracing task → IIT_ESCALATED: patient={} days={}", task.getPatient().getId(), days);

@@ -47,6 +47,7 @@ public class PatientService {
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final HomeVisitTaskService homeVisitTaskService;
     private final UniquenessValidator uniquenessValidator;
 
     // ── Route B — CHW provisional screening ──────────────────────────────────
@@ -64,15 +65,30 @@ public class PatientService {
                 ? String.join(",", req.getSymptoms())
                 : null;
 
-        // Recompute the derived flags server-side from the raw answers — the
-        // client's computed presumptiveTb / hivTestingReferral is never trusted.
-        boolean presumptiveTb = tf(req.getTbSymptomCough()) || tf(req.getTbSymptomFever())
-                || tf(req.getTbSymptomNightSweats()) || tf(req.getTbSymptomWeightLoss())
-                || tf(req.getTbSymptomChestPain());
-        boolean hivTestingReferral = tf(req.getHivRiskNeverTested()) || tf(req.getHivRiskPartnerPositive())
-                || tf(req.getHivRiskUnprotectedSex()) || tf(req.getHivRiskStiTreatment())
-                || tf(req.getHivRiskRecurrentIllness());
-        String manualReferralReason = (req.getManualReferralReason() != null
+        // Gate each screen by the condition being screened for, then recompute the
+        // derived flags server-side. The hidden block's answers are forced false/null
+        // regardless of what the client sends, and the client's computed
+        // presumptiveTb / hivTestingReferral is never trusted.
+        String condition = req.getSuspectedCondition();
+        boolean isTb  = "TB".equals(condition) || "HIV_TB_COINFECTION".equals(condition);
+        boolean isHiv = "HIV".equals(condition) || "HIV_TB_COINFECTION".equals(condition);
+
+        boolean tbCough       = isTb && tf(req.getTbSymptomCough());
+        boolean tbFever       = isTb && tf(req.getTbSymptomFever());
+        boolean tbNightSweats = isTb && tf(req.getTbSymptomNightSweats());
+        boolean tbWeightLoss  = isTb && tf(req.getTbSymptomWeightLoss());
+        boolean tbChestPain   = isTb && tf(req.getTbSymptomChestPain());
+        boolean presumptiveTb = tbCough || tbFever || tbNightSweats || tbWeightLoss || tbChestPain;
+
+        boolean hivNeverTested      = isHiv && tf(req.getHivRiskNeverTested());
+        boolean hivPartnerPositive  = isHiv && tf(req.getHivRiskPartnerPositive());
+        boolean hivUnprotectedSex   = isHiv && tf(req.getHivRiskUnprotectedSex());
+        boolean hivStiTreatment     = isHiv && tf(req.getHivRiskStiTreatment());
+        boolean hivRecurrentIllness = isHiv && tf(req.getHivRiskRecurrentIllness());
+        boolean hivTestingReferral  = hivNeverTested || hivPartnerPositive
+                || hivUnprotectedSex || hivStiTreatment || hivRecurrentIllness;
+
+        String manualReferralReason = (isHiv && req.getManualReferralReason() != null
                 && !req.getManualReferralReason().isBlank())
                 ? req.getManualReferralReason().trim() : null;
 
@@ -100,17 +116,17 @@ public class PatientService {
                 .screenedAt(LocalDateTime.now())
                 .suspectedCondition(req.getSuspectedCondition())
                 .screeningSymptoms(symptoms)
-                .tbSymptomCough(tf(req.getTbSymptomCough()))
-                .tbSymptomFever(tf(req.getTbSymptomFever()))
-                .tbSymptomNightSweats(tf(req.getTbSymptomNightSweats()))
-                .tbSymptomWeightLoss(tf(req.getTbSymptomWeightLoss()))
-                .tbSymptomChestPain(tf(req.getTbSymptomChestPain()))
+                .tbSymptomCough(tbCough)
+                .tbSymptomFever(tbFever)
+                .tbSymptomNightSweats(tbNightSweats)
+                .tbSymptomWeightLoss(tbWeightLoss)
+                .tbSymptomChestPain(tbChestPain)
                 .presumptiveTb(presumptiveTb)
-                .hivRiskNeverTested(tf(req.getHivRiskNeverTested()))
-                .hivRiskPartnerPositive(tf(req.getHivRiskPartnerPositive()))
-                .hivRiskUnprotectedSex(tf(req.getHivRiskUnprotectedSex()))
-                .hivRiskStiTreatment(tf(req.getHivRiskStiTreatment()))
-                .hivRiskRecurrentIllness(tf(req.getHivRiskRecurrentIllness()))
+                .hivRiskNeverTested(hivNeverTested)
+                .hivRiskPartnerPositive(hivPartnerPositive)
+                .hivRiskUnprotectedSex(hivUnprotectedSex)
+                .hivRiskStiTreatment(hivStiTreatment)
+                .hivRiskRecurrentIllness(hivRecurrentIllness)
                 .hivTestingReferral(hivTestingReferral)
                 .manualReferralReason(manualReferralReason)
                 .screeningNotes(req.getScreeningNotes())
@@ -271,6 +287,10 @@ public class PatientService {
 
         patientRepository.save(patient);
 
+        // A newly-confirmed patient needs an initial in-person assessment visit.
+        homeVisitTaskService.createTask(patient, HomeVisitTaskService.INITIAL_ASSESSMENT,
+                "New patient — initial home assessment");
+
         // Create app account if patient has a smartphone and no account yet
         String createdLoginEmail = null;
         String createdTempPass   = null;
@@ -396,9 +416,9 @@ public class PatientService {
     public PatientResponse getPatient(UUID patientId) {
         Chw chw = resolveCurrentChw();
         Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient not found: " + patientId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found."));
         if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new RuntimeException("Access denied: patient not assigned to you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This patient is not assigned to you.");
         }
         if ("PENDING".equals(patient.getChwAssignmentStatus())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -487,9 +507,9 @@ public class PatientService {
     public PatientResponse updatePatient(UUID patientId, UpdatePatientRequest req) {
         Chw chw = resolveCurrentChw();
         Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new RuntimeException("Patient not found: " + patientId));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found."));
         if (!patient.getChw().getId().equals(chw.getId())) {
-            throw new RuntimeException("Access denied: patient not assigned to you");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This patient is not assigned to you.");
         }
 
         if (req.getFullName() != null && !req.getFullName().isBlank())
@@ -604,9 +624,11 @@ public class PatientService {
     private Chw resolveCurrentChw() {
         String email = SecurityUtil.getCurrentUserEmail();
         SystemUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session is no longer valid. Please sign in again."));
         return chwRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("CHW profile not found for user: " + email));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Your CHW profile could not be found. Contact your administrator."));
     }
 
     private SystemUser resolveCurrentUser() {

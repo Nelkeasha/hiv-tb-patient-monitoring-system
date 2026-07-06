@@ -3,7 +3,9 @@ package com.nelly.hivtbmonitoringsystem.dto.response;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -41,6 +43,16 @@ public class HomeVisitResponse {
     private LocalDateTime nextVisitDate;
     private Integer adverseEventGrade;
     private Boolean referralInitiated;
+
+    // ── Differentiated DOT model (V33) ──
+    private Boolean dotObserved;
+    private Map<String, Boolean> tbSideEffects;
+    private Map<String, Boolean> artSideEffects;
+    private Boolean homeVentilationOk;
+    private Boolean coughHygieneOk;
+    private LocalDate nextDotDate;
+    private String homeVisitTrigger;
+
     private Integer recordVersion;
     private String syncStatus;
     private LocalDateTime createdAt;

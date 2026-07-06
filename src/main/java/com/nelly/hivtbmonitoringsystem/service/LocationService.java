@@ -5,8 +5,10 @@ import com.nelly.hivtbmonitoringsystem.repository.LocationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -138,7 +140,7 @@ public class LocationService {
     // Update
     public Location updateLocation(Long id, Location locationDetails) {
         Location location = locationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Location not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found."));
 
         location.setName(locationDetails.getName());
         location.setCode(locationDetails.getCode());
@@ -157,7 +159,7 @@ public class LocationService {
     // Delete
     public void deleteLocation(Long id) {
         if (!locationRepository.existsById(id)) {
-            throw new RuntimeException("Location not found with id: " + id);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Location not found.");
         }
         locationRepository.deleteById(id);
     }

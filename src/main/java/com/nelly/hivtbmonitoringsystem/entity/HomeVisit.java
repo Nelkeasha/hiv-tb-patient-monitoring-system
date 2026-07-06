@@ -6,7 +6,9 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -75,6 +77,35 @@ public class HomeVisit {
     /** Server-derived: any WHO cardinal TB symptom present → screen positive → refer for sputum testing. */
     @Builder.Default @Column(name = "presumptive_tb", nullable = false)
     private Boolean presumptiveTb = false;
+
+    // ── Differentiated DOT model (V33) ────────────────────────────────────────
+    /** Card B (TB): CHW watched the patient swallow their OWN already-dispensed dose. */
+    @Column(name = "dot_observed")
+    private Boolean dotObserved;
+
+    /** Card B (TB) side-effect toggles: jaundice, vomiting, jointPain, visionChanges, rash. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tb_side_effects", columnDefinition = "jsonb")
+    private Map<String, Boolean> tbSideEffects;
+
+    /** Card A (HIV/ART) side-effect toggles: jaundice, neuropathy, vomiting, rash. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "art_side_effects", columnDefinition = "jsonb")
+    private Map<String, Boolean> artSideEffects;
+
+    /** Card B infection control. */
+    @Column(name = "home_ventilation_ok")
+    private Boolean homeVentilationOk;
+    @Column(name = "cough_hygiene_ok")
+    private Boolean coughHygieneOk;
+
+    /** Card B: next scheduled in-person DOT review. */
+    @Column(name = "next_dot_date")
+    private LocalDate nextDotDate;
+
+    /** Why this in-person visit was generated (Part 3 trigger engine). Nullable. */
+    @Column(name = "home_visit_trigger", length = 30)
+    private String homeVisitTrigger;
 
     @Column(name = "psychosocial_notes", columnDefinition = "TEXT")
     private String psychosocialNotes;

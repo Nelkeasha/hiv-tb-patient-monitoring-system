@@ -9,7 +9,9 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Data
@@ -56,6 +58,17 @@ public class RecordVisitRequest {
 
     /** Whether the CHW initiated a clinical referral for this visit — expected for grade 3/4 adverse events. */
     private Boolean referralInitiated;
+
+    // ── Differentiated DOT model (V33). Gated server-side by the patient's diagnosisType. ──
+    /** Card B (TB): CHW observed the patient swallow their own already-dispensed dose. */
+    private Boolean dotObserved;
+    /** Card B (TB) side effects: keys jaundice, vomiting, jointPain, visionChanges, rash. */
+    private Map<String, Boolean> tbSideEffects;
+    /** Card A (HIV/ART) side effects: keys jaundice, neuropathy, vomiting, rash. */
+    private Map<String, Boolean> artSideEffects;
+    private Boolean homeVentilationOk;
+    private Boolean coughHygieneOk;
+    private LocalDate nextDotDate;
 
     /** Optional — set by the mobile app's offline outbox so a retried queue-flush is a safe no-op. */
     private UUID clientRequestId;

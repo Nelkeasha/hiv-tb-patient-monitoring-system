@@ -35,6 +35,7 @@ public class AlertService {
     private final AuditLogService auditLogService;
     private final SystemSettingsService systemSettingsService;
     private final EmailService emailService;
+    private final HomeVisitTaskService homeVisitTaskService;
 
     // ── CHW ──────────────────────────────────────────────────────────────────
 
@@ -286,6 +287,10 @@ public class AlertService {
                 .isResolved(false)
                 .build();
         broadcast(alertRepository.save(alert));
+
+        // Open a follow-up in-person home-visit task for the severe reaction.
+        homeVisitTaskService.createTask(patient, HomeVisitTaskService.SIDE_EFFECT,
+                "Grade " + visit.getAdverseEventGrade() + " adverse drug reaction");
 
         // CRITICAL severity — also notify Clinical Staff at the patient's facility by
         // email, not just the in-app/WebSocket broadcast (mirrors the IIT/treatment-

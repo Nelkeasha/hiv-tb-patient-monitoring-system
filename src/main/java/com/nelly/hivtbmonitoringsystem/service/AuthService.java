@@ -20,8 +20,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -63,7 +65,8 @@ public class AuthService {
         }
 
         SystemUser user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session is no longer valid. Please sign in again."));
 
         if (user.getFailedLoginAttempts() != null && user.getFailedLoginAttempts() > 0) {
             user.setFailedLoginAttempts(0);
@@ -91,10 +94,11 @@ public class AuthService {
     @Transactional
     public void changePassword(String email, ChangePasswordRequest request) {
         SystemUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session is no longer valid. Please sign in again."));
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Current password is incorrect");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Your current password is incorrect.");
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
@@ -107,7 +111,8 @@ public class AuthService {
     @Transactional
     public void acceptConsent(String email, AcceptConsentRequest request) {
         SystemUser user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session is no longer valid. Please sign in again."));
 
         user.setConsentGiven(true);
         user.setConsentTimestamp(LocalDateTime.now());
@@ -119,10 +124,12 @@ public class AuthService {
     @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         RefreshToken stored = refreshTokenRepository.findByToken(request.getRefreshToken())
-                .orElseThrow(() -> new RuntimeException("Invalid refresh token"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Your session has expired. Please sign in again."));
 
         if (stored.getIsRevoked() || stored.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Refresh token expired or revoked");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                    "Your session has expired. Please sign in again.");
         }
 
         SystemUser user = stored.getUser();

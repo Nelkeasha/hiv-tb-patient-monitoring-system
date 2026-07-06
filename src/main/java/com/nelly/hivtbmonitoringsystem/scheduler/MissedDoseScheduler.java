@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog;
 import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.repository.ConfirmationLogRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
+import com.nelly.hivtbmonitoringsystem.service.HomeVisitTaskService;
 import com.nelly.hivtbmonitoringsystem.service.MedicationRecordService;
 import com.nelly.hivtbmonitoringsystem.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class MissedDoseScheduler {
     private final ConfirmationLogRepository confirmationLogRepository;
     private final NotificationService notificationService;
     private final MedicationRecordService medicationRecordService;
+    private final HomeVisitTaskService homeVisitTaskService;
 
     /**
      * Runs every minute. For each active dose schedule whose window has closed today,
@@ -66,8 +68,12 @@ public class MissedDoseScheduler {
                         .aiSuspicionFlag(false)
                         .build();
                 confirmationLogRepository.save(missed);
-                notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(),
-                        consecutiveMissedStreak(schedule.getId()));
+                int streak = consecutiveMissedStreak(schedule.getId());
+                notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(), streak);
+                if (streak >= 2) {
+                    homeVisitTaskService.createTask(schedule.getPatient(),
+                            HomeVisitTaskService.MISSED_DOSES, streak + " consecutive missed doses");
+                }
                 medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 log.info("Missed dose auto-recorded: patient={} schedule={}",
                         schedule.getPatient().getId(), schedule.getId());
@@ -77,8 +83,12 @@ public class MissedDoseScheduler {
                 if (entry.getConfirmedAt() == null && Boolean.FALSE.equals(entry.getIsMissed())) {
                     entry.setIsMissed(true);
                     confirmationLogRepository.save(entry);
-                    notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(),
-                            consecutiveMissedStreak(schedule.getId()));
+                    int streak = consecutiveMissedStreak(schedule.getId());
+                    notificationService.notifyMissedDose(schedule.getPatient(), schedule.getPlan(), streak);
+                    if (streak >= 2) {
+                        homeVisitTaskService.createTask(schedule.getPatient(),
+                                HomeVisitTaskService.MISSED_DOSES, streak + " consecutive missed doses");
+                    }
                     medicationRecordService.recalculate(schedule.getPatient().getId(), schedule.getPlan().getId(), today);
                 }
             }
