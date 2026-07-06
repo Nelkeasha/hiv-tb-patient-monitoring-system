@@ -64,4 +64,21 @@ public class PatientResponse {
 
     /** When the record was promoted from PROVISIONAL to ACTIVE. */
     private LocalDateTime confirmedAt;
+
+    // ── RBC structured TB symptom screen (V32) ────────────────────────────────
+    private Boolean tbSymptomCough;
+    private Boolean tbSymptomFever;
+    private Boolean tbSymptomNightSweats;
+    private Boolean tbSymptomWeightLoss;
+    private Boolean tbSymptomChestPain;
+    private Boolean presumptiveTb;
+
+    // ── Community HIV testing-risk screen (V32) — null for supervisors/admins ──
+    private Boolean hivRiskNeverTested;
+    private Boolean hivRiskPartnerPositive;
+    private Boolean hivRiskUnprotectedSex;
+    private Boolean hivRiskStiTreatment;
+    private Boolean hivRiskRecurrentIllness;
+    private Boolean hivTestingReferral;
+    private String manualReferralReason;
 }

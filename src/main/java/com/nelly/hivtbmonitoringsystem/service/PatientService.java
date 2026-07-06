@@ -64,6 +64,18 @@ public class PatientService {
                 ? String.join(",", req.getSymptoms())
                 : null;
 
+        // Recompute the derived flags server-side from the raw answers — the
+        // client's computed presumptiveTb / hivTestingReferral is never trusted.
+        boolean presumptiveTb = tf(req.getTbSymptomCough()) || tf(req.getTbSymptomFever())
+                || tf(req.getTbSymptomNightSweats()) || tf(req.getTbSymptomWeightLoss())
+                || tf(req.getTbSymptomChestPain());
+        boolean hivTestingReferral = tf(req.getHivRiskNeverTested()) || tf(req.getHivRiskPartnerPositive())
+                || tf(req.getHivRiskUnprotectedSex()) || tf(req.getHivRiskStiTreatment())
+                || tf(req.getHivRiskRecurrentIllness());
+        String manualReferralReason = (req.getManualReferralReason() != null
+                && !req.getManualReferralReason().isBlank())
+                ? req.getManualReferralReason().trim() : null;
+
         Patient patient = Patient.builder()
                 .patientCode(patientCode)
                 .fullName(req.getFullName())
@@ -88,6 +100,19 @@ public class PatientService {
                 .screenedAt(LocalDateTime.now())
                 .suspectedCondition(req.getSuspectedCondition())
                 .screeningSymptoms(symptoms)
+                .tbSymptomCough(tf(req.getTbSymptomCough()))
+                .tbSymptomFever(tf(req.getTbSymptomFever()))
+                .tbSymptomNightSweats(tf(req.getTbSymptomNightSweats()))
+                .tbSymptomWeightLoss(tf(req.getTbSymptomWeightLoss()))
+                .tbSymptomChestPain(tf(req.getTbSymptomChestPain()))
+                .presumptiveTb(presumptiveTb)
+                .hivRiskNeverTested(tf(req.getHivRiskNeverTested()))
+                .hivRiskPartnerPositive(tf(req.getHivRiskPartnerPositive()))
+                .hivRiskUnprotectedSex(tf(req.getHivRiskUnprotectedSex()))
+                .hivRiskStiTreatment(tf(req.getHivRiskStiTreatment()))
+                .hivRiskRecurrentIllness(tf(req.getHivRiskRecurrentIllness()))
+                .hivTestingReferral(hivTestingReferral)
+                .manualReferralReason(manualReferralReason)
                 .screeningNotes(req.getScreeningNotes())
                 // No syncStatus until clinical staff confirms — a PROVISIONAL
                 // record has no verified diagnosis yet and must not appear as
@@ -482,7 +507,17 @@ public class PatientService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /** Null-safe truthiness for an optional Boolean flag. */
+    private static boolean tf(Boolean b) {
+        return b != null && b;
+    }
+
     private PatientResponse toResponse(Patient p, String loginEmail, String temporaryPassword) {
+        // HIV testing-risk answers are special-category data: visible only to the
+        // registering CHW (who only ever sees their own patients) and Clinical
+        // Staff who confirm the record. Redact them for supervisors and admins.
+        boolean hideHivRisk = SecurityUtil.hasAnyRole("ADMIN", "SYSTEM_ADMIN", "SUPERVISOR");
+
         return PatientResponse.builder()
                 .id(p.getId())
                 .patientCode(p.getPatientCode())
@@ -518,6 +553,21 @@ public class PatientService {
                 .screeningNotes(p.getScreeningNotes())
                 .labResultNotes(p.getLabResultNotes())
                 .confirmedAt(p.getConfirmedAt())
+                // Structured TB symptom screen (not sensitive — visible to all clinical roles)
+                .tbSymptomCough(p.getTbSymptomCough())
+                .tbSymptomFever(p.getTbSymptomFever())
+                .tbSymptomNightSweats(p.getTbSymptomNightSweats())
+                .tbSymptomWeightLoss(p.getTbSymptomWeightLoss())
+                .tbSymptomChestPain(p.getTbSymptomChestPain())
+                .presumptiveTb(p.getPresumptiveTb())
+                // Sensitive HIV testing-risk answers — redacted for supervisors/admins
+                .hivRiskNeverTested(hideHivRisk ? null : p.getHivRiskNeverTested())
+                .hivRiskPartnerPositive(hideHivRisk ? null : p.getHivRiskPartnerPositive())
+                .hivRiskUnprotectedSex(hideHivRisk ? null : p.getHivRiskUnprotectedSex())
+                .hivRiskStiTreatment(hideHivRisk ? null : p.getHivRiskStiTreatment())
+                .hivRiskRecurrentIllness(hideHivRisk ? null : p.getHivRiskRecurrentIllness())
+                .hivTestingReferral(hideHivRisk ? null : p.getHivTestingReferral())
+                .manualReferralReason(hideHivRisk ? null : p.getManualReferralReason())
                 .build();
     }
 

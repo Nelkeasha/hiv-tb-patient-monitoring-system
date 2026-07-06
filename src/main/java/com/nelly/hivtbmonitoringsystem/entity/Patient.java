@@ -153,6 +153,36 @@ public class Patient {
     @Column(name = "screening_symptoms", columnDefinition = "TEXT")
     private String screeningSymptoms;
 
+    // ── RBC structured TB symptom screen (V32) ────────────────────────────────
+    @Builder.Default @Column(name = "tb_symptom_cough", nullable = false)
+    private Boolean tbSymptomCough = false;
+    @Builder.Default @Column(name = "tb_symptom_fever", nullable = false)
+    private Boolean tbSymptomFever = false;
+    @Builder.Default @Column(name = "tb_symptom_night_sweats", nullable = false)
+    private Boolean tbSymptomNightSweats = false;
+    @Builder.Default @Column(name = "tb_symptom_weight_loss", nullable = false)
+    private Boolean tbSymptomWeightLoss = false;
+    @Builder.Default @Column(name = "tb_symptom_chest_pain", nullable = false)
+    private Boolean tbSymptomChestPain = false;
+    @Builder.Default @Column(name = "presumptive_tb", nullable = false)
+    private Boolean presumptiveTb = false;
+
+    // ── Community HIV testing-eligibility risk screen (V32, sensitive) ─────────
+    @Builder.Default @Column(name = "hiv_risk_never_tested", nullable = false)
+    private Boolean hivRiskNeverTested = false;
+    @Builder.Default @Column(name = "hiv_risk_partner_positive", nullable = false)
+    private Boolean hivRiskPartnerPositive = false;
+    @Builder.Default @Column(name = "hiv_risk_unprotected_sex", nullable = false)
+    private Boolean hivRiskUnprotectedSex = false;
+    @Builder.Default @Column(name = "hiv_risk_sti_treatment", nullable = false)
+    private Boolean hivRiskStiTreatment = false;
+    @Builder.Default @Column(name = "hiv_risk_recurrent_illness", nullable = false)
+    private Boolean hivRiskRecurrentIllness = false;
+    @Builder.Default @Column(name = "hiv_testing_referral", nullable = false)
+    private Boolean hivTestingReferral = false;
+    @Column(name = "manual_referral_reason", length = 200)
+    private String manualReferralReason;
+
     @Column(name = "screening_notes", columnDefinition = "TEXT")
     private String screeningNotes;
 

@@ -22,6 +22,19 @@ public class HomeVisitResponse {
     private Integer pillCountRecorded;
     private Integer pillCountExpected;
     private Boolean pillCountDiscrepancy;
+    // ── Structured symptom screen (Gap B) ──
+    private Boolean symptomCoughGe2w;
+    private Boolean symptomFever;
+    private Boolean symptomNightSweats;
+    private Boolean symptomWeightLoss;
+    private Boolean symptomHemoptysis;
+    private Boolean sideEffectNeuropathy;
+    private Boolean sideEffectJaundice;
+    private Boolean sideEffectNausea;
+    private Boolean sideEffectRash;
+    private Boolean sideEffectDizziness;
+    private Boolean presumptiveTb;
+
     private String symptomsReported;
     private String sideEffectsReported;
     private String psychosocialNotes;

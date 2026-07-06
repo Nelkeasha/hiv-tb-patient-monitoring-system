@@ -58,6 +58,27 @@ public class ScreenPatientRequest {
 
     private List<String> symptoms;
 
+    // ── RBC structured TB symptom screen (V32). presumptiveTb is recomputed
+    //    server-side from these five — the client value is never trusted. ──
+    private Boolean tbSymptomCough;
+    private Boolean tbSymptomFever;
+    private Boolean tbSymptomNightSweats;
+    private Boolean tbSymptomWeightLoss;
+    private Boolean tbSymptomChestPain;
+    private Boolean presumptiveTb;
+
+    // ── Community HIV testing-eligibility risk screen (V32). hivTestingReferral
+    //    is likewise recomputed server-side from the five risk answers. ──
+    private Boolean hivRiskNeverTested;
+    private Boolean hivRiskPartnerPositive;
+    private Boolean hivRiskUnprotectedSex;
+    private Boolean hivRiskStiTreatment;
+    private Boolean hivRiskRecurrentIllness;
+    private Boolean hivTestingReferral;
+
+    @Size(max = 200, message = ValidationMessages.MANUAL_REFERRAL_REASON_TOO_LONG)
+    private String manualReferralReason;
+
     private String screeningNotes;
 
     /**

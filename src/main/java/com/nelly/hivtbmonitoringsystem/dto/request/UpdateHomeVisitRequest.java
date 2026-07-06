@@ -32,6 +32,18 @@ public class UpdateHomeVisitRequest {
     @Min(value = 0, message = ValidationMessages.PILL_COUNT_NEGATIVE)
     private Integer pillCountExpected;
 
+    // ── Structured symptom screen (Gap B). Free-text below is now an optional "other" note. ──
+    private Boolean symptomCoughGe2w;
+    private Boolean symptomFever;
+    private Boolean symptomNightSweats;
+    private Boolean symptomWeightLoss;
+    private Boolean symptomHemoptysis;
+    private Boolean sideEffectNeuropathy;
+    private Boolean sideEffectJaundice;
+    private Boolean sideEffectNausea;
+    private Boolean sideEffectRash;
+    private Boolean sideEffectDizziness;
+
     private String symptomsReported;
     private String sideEffectsReported;
     private String psychosocialNotes;

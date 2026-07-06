@@ -48,6 +48,34 @@ public class HomeVisit {
     @Column(name = "side_effects_reported", columnDefinition = "TEXT")
     private String sideEffectsReported;
 
+    // ── Structured symptom screen (Gap B) — WHO four-symptom TB screen + hemoptysis ──
+    @Builder.Default @Column(name = "symptom_cough_ge2w", nullable = false)
+    private Boolean symptomCoughGe2w = false;
+    @Builder.Default @Column(name = "symptom_fever", nullable = false)
+    private Boolean symptomFever = false;
+    @Builder.Default @Column(name = "symptom_night_sweats", nullable = false)
+    private Boolean symptomNightSweats = false;
+    @Builder.Default @Column(name = "symptom_weight_loss", nullable = false)
+    private Boolean symptomWeightLoss = false;
+    @Builder.Default @Column(name = "symptom_hemoptysis", nullable = false)
+    private Boolean symptomHemoptysis = false;
+
+    // ── Standardized ART / TLD side-effect checklist (Gap B) ──
+    @Builder.Default @Column(name = "side_effect_neuropathy", nullable = false)
+    private Boolean sideEffectNeuropathy = false;
+    @Builder.Default @Column(name = "side_effect_jaundice", nullable = false)
+    private Boolean sideEffectJaundice = false;
+    @Builder.Default @Column(name = "side_effect_nausea", nullable = false)
+    private Boolean sideEffectNausea = false;
+    @Builder.Default @Column(name = "side_effect_rash", nullable = false)
+    private Boolean sideEffectRash = false;
+    @Builder.Default @Column(name = "side_effect_dizziness", nullable = false)
+    private Boolean sideEffectDizziness = false;
+
+    /** Server-derived: any WHO cardinal TB symptom present → screen positive → refer for sputum testing. */
+    @Builder.Default @Column(name = "presumptive_tb", nullable = false)
+    private Boolean presumptiveTb = false;
+
     @Column(name = "psychosocial_notes", columnDefinition = "TEXT")
     private String psychosocialNotes;
 

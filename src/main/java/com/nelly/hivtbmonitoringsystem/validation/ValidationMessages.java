@@ -35,6 +35,7 @@ public final class ValidationMessages {
     public static final String DIAGNOSIS_TYPE_REQUIRED = "Please select a diagnosis type (HIV, TB, or HIV/TB co-infection)";
     public static final String SUSPECTED_CONDITION_INVALID = "Suspected condition must be TB, HIV, or HIV_TB_COINFECTION";
     public static final String HOUSEHOLD_LOCATION_TOO_LONG = "Household location must be at most 255 characters";
+    public static final String MANUAL_REFERRAL_REASON_TOO_LONG = "Referral reason must be at most 200 characters";
     public static final String GEOHASH_INVALID = "Location data is invalid — please retry GPS capture";
     public static final String VILLAGE_TOO_LONG = "Village must be at most 100 characters";
     public static final String SECTOR_TOO_LONG = "Sector must be at most 100 characters";
