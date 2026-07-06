@@ -44,12 +44,13 @@ class PatientServiceTest {
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final AuditLogService auditLogService = mock(AuditLogService.class);
     private final NotificationService notificationService = mock(NotificationService.class);
+    private final HomeVisitTaskService homeVisitTaskService = mock(HomeVisitTaskService.class);
     private final UniquenessValidator uniquenessValidator = new UniquenessValidator();
 
     private final PatientService patientService = new PatientService(
             patientRepository, userRepository, chwRepository,
             facilityProviderRepository, passwordEncoder, auditLogService, notificationService,
-            uniquenessValidator);
+            homeVisitTaskService, uniquenessValidator);
 
     @BeforeEach
     void setUpSecurityContext() {
