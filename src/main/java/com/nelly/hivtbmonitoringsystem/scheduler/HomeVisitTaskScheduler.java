@@ -1,7 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.scheduler;
 
 import com.nelly.hivtbmonitoringsystem.entity.AiRiskScore;
-import com.nelly.hivtbmonitoringsystem.entity.HomeVisit;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.repository.AiRiskScoreRepository;
 import com.nelly.hivtbmonitoringsystem.repository.HomeVisitRepository;
@@ -14,7 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Optional;
+import java.time.LocalDateTime;
 
 /**
  * Generates the two triggered home-visit tasks that aren't tied to a single
@@ -50,12 +49,11 @@ public class HomeVisitTaskScheduler {
         }
 
         // PERIODIC_REVIEW — active confirmed patients with no recent in-person visit.
-        LocalDate cutoff = LocalDate.now().minusDays(PERIODIC_REVIEW_DAYS);
+        // Use a COUNT-since-cutoff query rather than loading each patient's full
+        // visit history just to read the latest date (was an N+1).
+        LocalDateTime cutoff = LocalDate.now().minusDays(PERIODIC_REVIEW_DAYS).atStartOfDay();
         for (Patient p : patientRepository.findByIsActiveTrueAndRegistrationStatus("CONFIRMED")) {
-            Optional<HomeVisit> latest = homeVisitRepository
-                    .findByPatientIdOrderByVisitDateDesc(p.getId()).stream().findFirst();
-            boolean dueForReview = latest.isEmpty()
-                    || latest.get().getVisitDate().toLocalDate().isBefore(cutoff);
+            boolean dueForReview = homeVisitRepository.countByPatientIdAndVisitDateAfter(p.getId(), cutoff) == 0;
             if (dueForReview) {
                 homeVisitTaskService.createTask(p, HomeVisitTaskService.PERIODIC_REVIEW,
                         "Scheduled periodic in-person review (every " + PERIODIC_REVIEW_DAYS + " days)");

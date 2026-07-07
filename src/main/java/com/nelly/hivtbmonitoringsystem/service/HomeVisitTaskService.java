@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -52,8 +53,13 @@ public class HomeVisitTaskService {
     /**
      * Opens a home-visit task for the patient's assigned CHW. No-op if the
      * patient has no CHW or an OPEN task with the same trigger already exists.
+     *
+     * Runs in its own transaction (REQUIRES_NEW): the partial unique index is a
+     * concurrency backstop, and if a racing insert trips it the resulting
+     * rollback stays contained here instead of poisoning the caller's
+     * transaction (recordVisit, the schedulers, confirmPatient, …).
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createTask(Patient patient, String triggerType, String reason) {
         if (patient == null || patient.getChw() == null) return;
         if (taskRepository.existsByPatientIdAndTriggerTypeAndStatus(patient.getId(), triggerType, "OPEN")) {
