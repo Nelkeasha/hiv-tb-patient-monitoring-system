@@ -49,6 +49,9 @@ public class HomeVisitTaskService {
     public static final String HIGH_RISK = "HIGH_RISK";
     public static final String PERIODIC_REVIEW = "PERIODIC_REVIEW";
     public static final String INITIAL_ASSESSMENT = "INITIAL_ASSESSMENT";
+    /** Prevention-mode follow-ups after a NEGATIVE screening result (RBC 2022). */
+    public static final String PREVENTION_TB = "PREVENTION_TB";
+    public static final String PREVENTION_PREP = "PREVENTION_PREP";
 
     /**
      * Opens a home-visit task for the patient's assigned CHW. No-op if the

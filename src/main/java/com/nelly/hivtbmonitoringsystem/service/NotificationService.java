@@ -289,6 +289,22 @@ public class NotificationService {
         log.info("PATIENT_CONFIRMED notification sent: patient={} chw={}", patient.getId(), chw.getId());
     }
 
+    // ── Prevention referral after a NEGATIVE screening result (RBC 2022) ──────
+
+    /** Pushes a prevention-mode directive to the CHW's phone (TB differential / HIV PrEP). */
+    public void notifyPreventionReferral(Patient patient, String title, String body) {
+        Chw chw = patient.getChw();
+        if (chw == null || chw.getUser() == null) {
+            log.info("PREVENTION_REFERRAL: no CHW for patient={}, skipping push", patient.getId());
+            return;
+        }
+        String token = chw.getUser().getFcmToken();
+        if (token != null) {
+            fcmService.sendGeneric(token, title, body, "PREVENTION_REFERRAL");
+        }
+        log.info("PREVENTION_REFERRAL push queued: patient={} chw={}", patient.getId(), chw.getId());
+    }
+
     // ── Patient App Account Created ───────────────────────────────────────────
 
     public void notifyPatientAccountCreated(String phone, String fullName,

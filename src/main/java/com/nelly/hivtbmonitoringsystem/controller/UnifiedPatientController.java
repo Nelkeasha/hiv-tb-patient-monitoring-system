@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.controller;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.ConfirmPatientRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ResolveNegativeRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RegisterPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.ScreenPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.PatientResponse;
@@ -64,6 +65,16 @@ public class UnifiedPatientController {
             @PathVariable UUID patientId,
             @Valid @RequestBody ConfirmPatientRequest request) {
         return ResponseEntity.ok(patientService.confirmPatient(patientId, request));
+    }
+
+    /** Route B negative resolution — lab result came back negative; flag the voucher
+     *  RESOLVED_NEGATIVE (registry block) and redirect to prevention (RBC 2022). */
+    @PutMapping("/{patientId}/resolve-negative")
+    @PreAuthorize("hasAnyRole('CLINICAL_STAFF', 'FACILITY_PROVIDER', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<PatientResponse> resolveNegative(
+            @PathVariable UUID patientId,
+            @Valid @RequestBody ResolveNegativeRequest request) {
+        return ResponseEntity.ok(patientService.resolveNegative(patientId, request));
     }
 
     // ── Reads ─────────────────────────────────────────────────────────────────

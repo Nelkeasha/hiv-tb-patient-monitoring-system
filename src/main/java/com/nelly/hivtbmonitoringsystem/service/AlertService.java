@@ -59,9 +59,27 @@ public class AlertService {
     // ── Clinical / facility provider ─────────────────────────────────────────
 
     public List<AlertResponse> getClinicalAlerts() {
-        return alertRepository.findBySeverityInAndIsResolvedFalseOrderByCreatedAtDesc(
-                        List.of(AlertSeverity.CRITICAL, AlertSeverity.WARNING))
-                .stream().map(this::toResponse).toList();
+        List<AlertSeverity> sevs = List.of(AlertSeverity.CRITICAL, AlertSeverity.WARNING);
+        UUID facilityId = resolveFacilityScopeOrNull();
+        List<Alert> alerts = facilityId == null
+                ? alertRepository.findBySeverityInAndIsResolvedFalseOrderByCreatedAtDesc(sevs)
+                : alertRepository.findFacilityClinicalActive(facilityId, sevs);
+        return alerts.stream().map(this::toResponse).toList();
+    }
+
+    /**
+     * The facility a clinical caller is scoped to, or null for system-wide access.
+     * ADMIN/SYSTEM_ADMIN see every facility; a facility provider / clinical staff
+     * member sees only their own facility's patients' alerts (mirrors the CHW
+     * seeing only their own patients). A caller with no facility profile (e.g. a
+     * supervisor, who has separate supervisor views) keeps the unscoped behavior.
+     */
+    private UUID resolveFacilityScopeOrNull() {
+        SystemUser user = resolveCurrentUser();
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.SYSTEM_ADMIN) return null;
+        return facilityProviderRepository.findByUserId(user.getId())
+                .map(p -> p.getFacility().getId())
+                .orElse(null);
     }
 
     public List<AlertResponse> getClinicalPatientAlerts(UUID patientId) {
@@ -116,11 +134,14 @@ public class AlertService {
         }
     }
 
-    /** Resolved CRITICAL/WARNING alerts — the clinical "Resolved" history view. */
+    /** Resolved CRITICAL/WARNING alerts — the clinical "Resolved" history view (facility-scoped). */
     public List<AlertResponse> getResolvedClinicalAlerts() {
-        return alertRepository.findBySeverityInAndIsResolvedTrueOrderByResolvedAtDesc(
-                        List.of(AlertSeverity.CRITICAL, AlertSeverity.WARNING))
-                .stream().map(this::toResponse).toList();
+        List<AlertSeverity> sevs = List.of(AlertSeverity.CRITICAL, AlertSeverity.WARNING);
+        UUID facilityId = resolveFacilityScopeOrNull();
+        List<Alert> alerts = facilityId == null
+                ? alertRepository.findBySeverityInAndIsResolvedTrueOrderByResolvedAtDesc(sevs)
+                : alertRepository.findFacilityClinicalResolved(facilityId, sevs);
+        return alerts.stream().map(this::toResponse).toList();
     }
 
     private void broadcast(Alert saved) {

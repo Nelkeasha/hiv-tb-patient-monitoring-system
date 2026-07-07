@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.service;
 
 import com.nelly.hivtbmonitoringsystem.dto.request.ConfirmPatientRequest;
+import com.nelly.hivtbmonitoringsystem.dto.request.ResolveNegativeRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.EnrollPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.RegisterPatientRequest;
 import com.nelly.hivtbmonitoringsystem.dto.request.ScreenPatientRequest;
@@ -338,6 +339,70 @@ public class PatientService {
         notificationService.notifyPatientConfirmed(patient, patient.getChw(), currentUser.getFullName());
 
         return toResponse(patient, createdLoginEmail, createdTempPass);
+    }
+
+    /**
+     * Route B NEGATIVE resolution (RBC 2022 registry block). The clinic lab result
+     * for a PROVISIONAL screening voucher came back negative, so the voucher is
+     * flagged RESOLVED_NEGATIVE and deactivated — dropping it from the queue and
+     * blocking it from ever entering the active/chronic patient tables (TX_CURR,
+     * DOT calendar, risk scoring, FHIR), all of which gate on CONFIRMED. The case
+     * is then redirected to prevention: a TB differential-diagnosis follow-up
+     * and/or an HIV PrEP prevention task for the CHW who screened them.
+     */
+    @Transactional
+    public PatientResponse resolveNegative(UUID patientId, ResolveNegativeRequest req) {
+        SystemUser currentUser = resolveCurrentUser();
+
+        Patient patient = patientRepository.findById(patientId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        if (!"PROVISIONAL".equals(patient.getRegistrationStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only a provisional (awaiting-confirmation) screening voucher can be resolved as negative.");
+        }
+
+        // Registry block — flag the voucher negative and deactivate. Because every
+        // active/chronic view gates on registration_status = 'CONFIRMED', this alone
+        // keeps the profile out of TX_CURR, the DOT calendar, risk scoring and FHIR.
+        patient.setRegistrationStatus("RESOLVED_NEGATIVE");
+        patient.setIsActive(false);
+        patient.setConfirmedBy(currentUser.getId());
+        patient.setConfirmedAt(LocalDateTime.now());
+
+        String labRef = req.getLabReference() != null && !req.getLabReference().isBlank()
+                ? req.getLabReference().trim() : null;
+        StringBuilder note = new StringBuilder("Screen NEGATIVE — voucher resolved and dropped from queue.");
+        if (labRef != null) note.append(" Lab ref: ").append(labRef).append('.');
+        if (req.getNotes() != null && !req.getNotes().isBlank()) note.append(' ').append(req.getNotes().trim());
+        patient.setLabResultNotes(note.toString());
+
+        patientRepository.save(patient);
+        auditLogService.log("RESOLVE_SCREEN_NEGATIVE", "patients", patient.getId());
+
+        // Shift to prevention mode based on what was screened.
+        String condition = patient.getSuspectedCondition();
+        boolean screenedTb  = "TB".equals(condition) || "HIV_TB_COINFECTION".equals(condition);
+        boolean screenedHiv = "HIV".equals(condition) || "HIV_TB_COINFECTION".equals(condition);
+
+        if (screenedTb) {
+            // TB-negative but the cardinal symptoms that triggered the screen may persist.
+            String directive = "TB-negative for " + patient.getFullName()
+                    + ". If cough/symptoms persist, refer to the outpatient clinic to evaluate for a"
+                    + " general chest infection (e.g. bacterial pneumonia, asthma).";
+            homeVisitTaskService.createTask(patient, HomeVisitTaskService.PREVENTION_TB, directive);
+            notificationService.notifyPreventionReferral(patient, "TB-negative — differential diagnosis", directive);
+        }
+        if (screenedHiv && Boolean.TRUE.equals(patient.getHivTestingReferral())) {
+            // HIV-negative but screened for high-risk behaviour → ideal PrEP candidate.
+            String directive = "HIV-negative, high-risk for " + patient.getFullName()
+                    + ". Issue a PrEP (Pre-Exposure Prophylaxis) prevention voucher and counsel the client"
+                    + " on staying negative.";
+            homeVisitTaskService.createTask(patient, HomeVisitTaskService.PREVENTION_PREP, directive);
+            notificationService.notifyPreventionReferral(patient, "HIV-negative — offer PrEP", directive);
+        }
+
+        return toResponse(patient, null, null);
     }
 
     // ── CHW: backward-compat enrollment (also creates PROVISIONAL) ────────────

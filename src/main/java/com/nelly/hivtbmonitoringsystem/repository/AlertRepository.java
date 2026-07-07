@@ -23,6 +23,22 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     List<Alert> findByAlertTypeAndIsResolvedFalse(AlertType alertType);
     // Resolved history for the clinical alerts "Resolved" view (newest resolution first).
     List<Alert> findBySeverityInAndIsResolvedTrueOrderByResolvedAtDesc(List<AlertSeverity> severities);
+
+    // Facility-scoped clinical alerts — a facility provider sees only their own
+    // facility's patients' alerts (the patient carries the facility).
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT a FROM Alert a WHERE a.patient.facility.id = :facilityId " +
+            "AND a.severity IN :sevs AND a.isResolved = false ORDER BY a.createdAt DESC")
+    List<Alert> findFacilityClinicalActive(
+            @org.springframework.data.repository.query.Param("facilityId") UUID facilityId,
+            @org.springframework.data.repository.query.Param("sevs") List<AlertSeverity> sevs);
+
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT a FROM Alert a WHERE a.patient.facility.id = :facilityId " +
+            "AND a.severity IN :sevs AND a.isResolved = true ORDER BY a.resolvedAt DESC")
+    List<Alert> findFacilityClinicalResolved(
+            @org.springframework.data.repository.query.Param("facilityId") UUID facilityId,
+            @org.springframework.data.repository.query.Param("sevs") List<AlertSeverity> sevs);
     List<Alert> findBySeverityAndIsResolvedFalse(AlertSeverity severity);
     List<Alert> findByChwIdAndIsResolvedFalseOrderByCreatedAtDesc(UUID chwId);
     List<Alert> findByChwIdAndIsReadFalseOrderByCreatedAtDesc(UUID chwId);
