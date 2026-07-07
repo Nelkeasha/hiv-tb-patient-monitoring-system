@@ -3,6 +3,7 @@ package com.nelly.hivtbmonitoringsystem.service;
 import com.nelly.hivtbmonitoringsystem.dto.request.SubmitConfirmationRequest;
 import com.nelly.hivtbmonitoringsystem.dto.response.ConfirmationLogResponse;
 import com.nelly.hivtbmonitoringsystem.entity.*;
+import com.nelly.hivtbmonitoringsystem.enums.AlertType;
 import com.nelly.hivtbmonitoringsystem.enums.ConfirmationChannel;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
 import com.nelly.hivtbmonitoringsystem.repository.*;
@@ -30,6 +31,7 @@ public class PatientConfirmationService {
     private final ChwRepository chwRepository;
     private final AiConfirmationAnalysisService aiConfirmationAnalysisService;
     private final MedicationRecordService medicationRecordService;
+    private final AlertService alertService;
 
     @Transactional
     public ConfirmationLogResponse submitConfirmation(SubmitConfirmationRequest req) {
@@ -89,6 +91,11 @@ public class PatientConfirmationService {
         ConfirmationLog saved = confirmationLogRepository.save(log);
 
         medicationRecordService.recalculate(patient.getId(), schedule.getPlan().getId(), today);
+
+        // Condition cleared: a confirmed dose ends the missed-dose streak, so any
+        // open MISSED_DOSE alert for this patient auto-resolves. A false-confirmation
+        // signal is tracked separately (aiSuspicionFlag) and is not silenced here.
+        alertService.autoResolvePatientAlerts(patient.getId(), AlertType.MISSED_DOSE);
 
         aiConfirmationAnalysisService.analyze(
                 saved.getId(),

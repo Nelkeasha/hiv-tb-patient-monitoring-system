@@ -47,6 +47,13 @@ public class AlertController {
         return ResponseEntity.ok(alertService.getClinicalAlerts());
     }
 
+    /** Resolved CRITICAL and WARNING alerts — the clinical "Resolved" history view. */
+    @GetMapping("/clinical/resolved")
+    @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")
+    public ResponseEntity<List<AlertResponse>> getResolvedClinicalAlerts() {
+        return ResponseEntity.ok(alertService.getResolvedClinicalAlerts());
+    }
+
     /** All unresolved alerts for a specific patient — clinical staff view. */
     @GetMapping("/clinical/patient/{patientId}")
     @PreAuthorize("hasAnyRole('FACILITY_PROVIDER', 'CLINICAL_STAFF', 'SUPERVISOR', 'ADMIN', 'SYSTEM_ADMIN')")

@@ -93,6 +93,36 @@ public class AlertService {
         return toResponse(saved);
     }
 
+    /**
+     * Auto-resolves every open alert of {@code type} for a patient once the
+     * underlying condition has actually cleared — e.g. a MISSED_DOSE alert when
+     * the patient confirms a dose, or a NEW_PATIENT_ASSIGNMENT alert when the CHW
+     * accepts. Called by the flow that clears the condition, not by a resolver
+     * clicking a button, so it skips the ownership check and records the acting
+     * user (system triggers may have no user — then {@code resolvedBy} is null).
+     */
+    @Transactional
+    public void autoResolvePatientAlerts(UUID patientId, AlertType type) {
+        List<Alert> open = alertRepository.findByPatientIdAndAlertTypeAndIsResolvedFalse(patientId, type);
+        if (open.isEmpty()) return;
+        SystemUser actor = resolveCurrentUserOrNull();
+        LocalDateTime now = LocalDateTime.now();
+        for (Alert a : open) {
+            a.setIsResolved(true);
+            a.setResolvedAt(now);
+            a.setResolvedBy(actor);
+            alertRepository.save(a);
+            auditLogService.log("ALERT_AUTO_RESOLVED", "alerts", a.getId());
+        }
+    }
+
+    /** Resolved CRITICAL/WARNING alerts — the clinical "Resolved" history view. */
+    public List<AlertResponse> getResolvedClinicalAlerts() {
+        return alertRepository.findBySeverityInAndIsResolvedTrueOrderByResolvedAtDesc(
+                        List.of(AlertSeverity.CRITICAL, AlertSeverity.WARNING))
+                .stream().map(this::toResponse).toList();
+    }
+
     private void broadcast(Alert saved) {
         messagingTemplate.convertAndSend("/topic/alerts", toResponse(saved));
     }
@@ -247,6 +277,28 @@ public class AlertService {
 
         int threshold = systemSettingsService.get().getMissedDoseThreshold();
         AlertSeverity severity = consecutiveMissed >= threshold ? AlertSeverity.CRITICAL : AlertSeverity.WARNING;
+        String message = String.format(
+                "Patient %s missed their %s dose scheduled for %s. Consecutive misses: %d%s.",
+                patient.getFullName(),
+                plan.getMedication().getName(),
+                LocalDate.now(),
+                consecutiveMissed,
+                consecutiveMissed >= threshold ? " (threshold reached — escalated)" : "");
+
+        // One living alert per patient for an ongoing streak: if an open missed-dose
+        // alert already exists, update it in place (bump the streak/severity and
+        // re-surface as unread) instead of inserting a duplicate row every day.
+        Alert existing = alertRepository
+                .findFirstByPatientIdAndAlertTypeAndIsResolvedFalseOrderByCreatedAtDesc(
+                        patient.getId(), AlertType.MISSED_DOSE)
+                .orElse(null);
+        if (existing != null) {
+            existing.setSeverity(severity);
+            existing.setMessage(message);
+            existing.setIsRead(false);
+            broadcast(alertRepository.save(existing));
+            return;
+        }
 
         Alert alert = Alert.builder()
                 .patient(patient)
@@ -254,13 +306,7 @@ public class AlertService {
                 .alertType(AlertType.MISSED_DOSE)
                 .severity(severity)
                 .title("Missed Dose — " + patient.getFullName())
-                .message(String.format(
-                        "Patient %s missed their %s dose scheduled for %s. Consecutive misses: %d%s.",
-                        patient.getFullName(),
-                        plan.getMedication().getName(),
-                        LocalDate.now(),
-                        consecutiveMissed,
-                        consecutiveMissed >= threshold ? " (threshold reached — escalated)" : ""))
+                .message(message)
                 .isRead(false)
                 .isResolved(false)
                 .build();
@@ -400,6 +446,17 @@ public class AlertService {
         String email = SecurityUtil.getCurrentUserEmail();
         return systemUserRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+    }
+
+    /** Current user if there is an authenticated one, else null (system-triggered auto-resolve). */
+    private SystemUser resolveCurrentUserOrNull() {
+        try {
+            String email = SecurityUtil.getCurrentUserEmail();
+            if (email == null) return null;
+            return systemUserRepository.findByEmail(email).orElse(null);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     private AlertResponse toResponse(Alert a) {

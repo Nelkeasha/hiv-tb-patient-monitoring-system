@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -17,7 +18,11 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     List<Alert> findBySupervisorId(UUID supervisorId);
     List<Alert> findByIsResolvedFalse();
     List<Alert> findByPatientIdAndIsResolvedFalse(UUID patientId);
+    List<Alert> findByPatientIdAndAlertTypeAndIsResolvedFalse(UUID patientId, AlertType alertType);
+    Optional<Alert> findFirstByPatientIdAndAlertTypeAndIsResolvedFalseOrderByCreatedAtDesc(UUID patientId, AlertType alertType);
     List<Alert> findByAlertTypeAndIsResolvedFalse(AlertType alertType);
+    // Resolved history for the clinical alerts "Resolved" view (newest resolution first).
+    List<Alert> findBySeverityInAndIsResolvedTrueOrderByResolvedAtDesc(List<AlertSeverity> severities);
     List<Alert> findBySeverityAndIsResolvedFalse(AlertSeverity severity);
     List<Alert> findByChwIdAndIsResolvedFalseOrderByCreatedAtDesc(UUID chwId);
     List<Alert> findByChwIdAndIsReadFalseOrderByCreatedAtDesc(UUID chwId);

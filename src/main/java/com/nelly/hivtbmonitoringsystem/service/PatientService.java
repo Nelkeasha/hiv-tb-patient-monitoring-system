@@ -12,6 +12,7 @@ import com.nelly.hivtbmonitoringsystem.entity.Chw;
 import com.nelly.hivtbmonitoringsystem.entity.FacilityProvider;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
 import com.nelly.hivtbmonitoringsystem.entity.SystemUser;
+import com.nelly.hivtbmonitoringsystem.enums.AlertType;
 import com.nelly.hivtbmonitoringsystem.enums.DiagnosisType;
 import com.nelly.hivtbmonitoringsystem.enums.SyncStatus;
 import com.nelly.hivtbmonitoringsystem.enums.UserRole;
@@ -48,6 +49,7 @@ public class PatientService {
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
     private final HomeVisitTaskService homeVisitTaskService;
+    private final AlertService alertService;
     private final UniquenessValidator uniquenessValidator;
 
     // ── Route B — CHW provisional screening ──────────────────────────────────
@@ -459,6 +461,9 @@ public class PatientService {
         patient.setChwAcceptedAt(LocalDateTime.now());
         patientRepository.save(patient);
         auditLogService.log("ACCEPT_PATIENT_ASSIGNMENT", "patients", patient.getId());
+        // Condition cleared: the CHW accepted, so the "assignment not accepted"
+        // escalation alert no longer applies — auto-resolve it.
+        alertService.autoResolvePatientAlerts(patient.getId(), AlertType.NEW_PATIENT_ASSIGNMENT);
         return toResponse(patient, null, null);
     }
 

@@ -4,6 +4,7 @@ import com.nelly.hivtbmonitoringsystem.dto.response.ConfirmationLogResponse;
 import com.nelly.hivtbmonitoringsystem.entity.ConfirmationLog;
 import com.nelly.hivtbmonitoringsystem.entity.DoseSchedule;
 import com.nelly.hivtbmonitoringsystem.entity.Patient;
+import com.nelly.hivtbmonitoringsystem.enums.AlertType;
 import com.nelly.hivtbmonitoringsystem.enums.ConfirmationChannel;
 import com.nelly.hivtbmonitoringsystem.repository.ConfirmationLogRepository;
 import com.nelly.hivtbmonitoringsystem.repository.DoseScheduleRepository;
@@ -39,6 +40,7 @@ public class SmsConfirmationService {
     private final ConfirmationLogRepository confirmationLogRepository;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final AlertService alertService;
 
     public enum SmsResult { CONFIRMED, MISSED, UNRECOGNIZED, PATIENT_NOT_FOUND, NO_ACTIVE_SCHEDULE, ALREADY_CONFIRMED }
 
@@ -126,6 +128,9 @@ public class SmsConfirmationService {
 
         confirmationLogRepository.save(entry);
         auditLogService.log("SMS_CONFIRMATION", "confirmation_logs", entry.getId());
+        // Condition cleared: a confirmed dose ends the streak, so auto-resolve any
+        // open MISSED_DOSE alert for this patient (mirrors the app confirmation path).
+        alertService.autoResolvePatientAlerts(patient.getId(), AlertType.MISSED_DOSE);
         log.info("SMS callback: dose confirmed for patient={} withinWindow=true", patient.getId());
         return SmsResult.CONFIRMED;
     }
