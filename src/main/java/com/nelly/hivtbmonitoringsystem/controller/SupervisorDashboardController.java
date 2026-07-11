@@ -7,6 +7,7 @@ import com.nelly.hivtbmonitoringsystem.service.export.SupervisorCsvReportService
 import com.nelly.hivtbmonitoringsystem.service.export.SupervisorExcelReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.SupervisorPdfReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.support.ReportFormat;
+import com.nelly.hivtbmonitoringsystem.service.report.SupervisorReportModelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +27,7 @@ public class SupervisorDashboardController {
 
     private final SupervisorDashboardService dashboardService;
     private final SupervisorReportService reportService;
+    private final SupervisorReportModelService reportModelService;
     private final SupervisorPdfReportService pdfReportService;
     private final SupervisorExcelReportService excelReportService;
     private final SupervisorCsvReportService csvReportService;
@@ -72,16 +74,26 @@ public class SupervisorDashboardController {
         return ResponseEntity.ok(dashboardService.getWeeklyActivity());
     }
 
-    /** Supervisor report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv. */
+    /**
+     * Supervisor report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv.
+     * Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD sets the reporting period (default: last 30 days).
+     * The PDF is the redesigned management report (executive summary, KPIs with
+     * period-over-period deltas, recommendations, case line-listings); Excel/CSV
+     * remain flat data exports for analysis/ingestion.
+     */
     @GetMapping("/reports/summary/export")
-    public ResponseEntity<byte[]> downloadReport(@RequestParam String format) {
+    public ResponseEntity<byte[]> downloadReport(
+            @RequestParam String format,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
         ReportFormat reportFormat = ReportFormat.fromParam(format);
-        SupervisorReportResponse report = reportService.generateSummary();
+        LocalDate fromDate = (from != null && !from.isBlank()) ? LocalDate.parse(from) : null;
+        LocalDate toDate = (to != null && !to.isBlank()) ? LocalDate.parse(to) : null;
 
         byte[] body = switch (reportFormat) {
-            case PDF -> pdfReportService.generate(report);
-            case EXCEL -> excelReportService.generate(report);
-            case CSV -> csvReportService.generate(report);
+            case PDF -> pdfReportService.generate(reportModelService.build(fromDate, toDate));
+            case EXCEL -> excelReportService.generate(reportModelService.build(fromDate, toDate));
+            case CSV -> csvReportService.generate(reportService.generateSummary());
         };
 
         String filename = "supervisor-report-" + LocalDate.now() + "." + reportFormat.fileExtension;

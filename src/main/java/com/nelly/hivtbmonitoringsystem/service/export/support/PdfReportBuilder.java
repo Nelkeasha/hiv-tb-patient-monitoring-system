@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.service.export.support;
 
+import com.lowagie.text.Chunk;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
@@ -10,6 +11,8 @@ import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
 import com.lowagie.text.Rectangle;
+import com.nelly.hivtbmonitoringsystem.dto.report.Indicator;
+import com.nelly.hivtbmonitoringsystem.dto.report.Recommendation;
 import com.lowagie.text.pdf.BaseFont;
 import com.lowagie.text.pdf.ColumnText;
 import com.lowagie.text.pdf.PdfContentByte;
@@ -65,6 +68,11 @@ public class PdfReportBuilder {
     private final Font sigNameFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    9f, TEXT_DARK);
     private final Font sigRoleFont   = FontFactory.getFont(FontFactory.HELVETICA,         8f, TEXT_GREY);
     private final Font noteFont      = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8f, TEXT_GREY);
+    private final Font execLeadFont  = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   9f, BRAND_DEEP);
+    private final Font execBodyFont  = FontFactory.getFont(FontFactory.HELVETICA,         9f, TEXT_DARK);
+    private final Font kpiLabelFont  = FontFactory.getFont(FontFactory.HELVETICA,       7.5f, TEXT_GREY);
+    private final Font kpiValueFont  = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   16f, BRAND_BROWN);
+    private final Font kpiTargetFont = FontFactory.getFont(FontFactory.HELVETICA,       6.8f, TEXT_GREY);
 
     private final Document doc;
     private final ByteArrayOutputStream out;
@@ -242,7 +250,202 @@ public class PdfReportBuilder {
         return out.toByteArray();
     }
 
+    /**
+     * Executive-summary block: a run of justified paragraphs. Each entry is
+     * "lead||body" — the lead-in (e.g. "What happened.") is bolded in the brand
+     * colour, the body rendered as normal justified prose.
+     */
+    public PdfReportBuilder executiveSummary(List<String> points) {
+        try {
+            addSectionTitle("Executive Summary");
+            if (points != null) {
+                for (String point : points) {
+                    if (point == null || point.isBlank()) continue;
+                    String lead;
+                    String body;
+                    int sep = point.indexOf("||");
+                    if (sep >= 0) {
+                        lead = point.substring(0, sep).trim();
+                        body = point.substring(sep + 2).trim();
+                    } else {
+                        lead = "";
+                        body = point.trim();
+                    }
+                    Paragraph p = new Paragraph();
+                    p.setAlignment(Element.ALIGN_JUSTIFIED);
+                    p.setSpacingAfter(7);
+                    p.setLeading(12.5f);
+                    if (!lead.isEmpty()) {
+                        p.add(new Chunk(lead + "  ", execLeadFont));
+                    }
+                    p.add(new Chunk(body, execBodyFont));
+                    doc.add(p);
+                }
+            }
+            return this;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add executive summary", e);
+        }
+    }
+
+    /**
+     * KPI card grid (4 per row): a big value, an optional coloured delta chip
+     * comparing to the previous period, and a target/context caption.
+     */
+    public PdfReportBuilder kpiCards(String title, List<Indicator> indicators) {
+        try {
+            addSectionTitle(title);
+            if (indicators == null || indicators.isEmpty()) return this;
+
+            final int cols = 4;
+            PdfPTable table = new PdfPTable(cols);
+            table.setWidthPercentage(100);
+            table.getDefaultCell().setBorder(Rectangle.NO_BORDER);
+
+            for (Indicator ind : indicators) {
+                table.addCell(buildKpiCard(ind));
+            }
+            // pad the last row so all cells are equal width
+            int remainder = indicators.size() % cols;
+            if (remainder != 0) {
+                for (int i = 0; i < cols - remainder; i++) {
+                    PdfPCell empty = new PdfPCell();
+                    empty.setBorder(Rectangle.NO_BORDER);
+                    table.addCell(empty);
+                }
+            }
+            table.setSpacingBefore(2);
+            doc.add(table);
+            return this;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add KPI cards", e);
+        }
+    }
+
+    /**
+     * Recommended-actions table: numbered, colour-coded priority tag, finding,
+     * suggested action, and the owner responsible.
+     */
+    public PdfReportBuilder recommendations(List<Recommendation> recs) {
+        try {
+            addSectionTitle("Recommended Actions");
+            PdfPTable table = new PdfPTable(new float[]{0.4f, 1.1f, 3.2f, 3.5f, 1.3f});
+            table.setWidthPercentage(100);
+
+            for (String h : new String[]{"#", "Priority", "Finding", "Suggested Action", "Owner"}) {
+                PdfPCell cell = new PdfPCell(new Phrase(h, tableHeadFont));
+                cell.setBackgroundColor(TINT);
+                cell.setPadding(7);
+                cell.setBorderColor(BORDER);
+                table.addCell(cell);
+            }
+
+            if (recs == null || recs.isEmpty()) {
+                PdfPCell empty = new PdfPCell(new Phrase("No recommendations generated", tableCellFont));
+                empty.setColspan(5);
+                empty.setPadding(10);
+                empty.setBorderColor(BORDER);
+                empty.setHorizontalAlignment(Element.ALIGN_CENTER);
+                table.addCell(empty);
+                doc.add(table);
+                return this;
+            }
+
+            int i = 1;
+            boolean alt = false;
+            for (Recommendation r : recs) {
+                Color bg = alt ? ALT_ROW : Color.WHITE;
+
+                PdfPCell num = new PdfPCell(new Phrase(String.valueOf(i++), tableCellFont));
+                num.setPadding(6); num.setBorderColor(BORDER); num.setBackgroundColor(bg);
+                num.setHorizontalAlignment(Element.ALIGN_CENTER);
+                table.addCell(num);
+
+                Color sevColor = severityColor(r.getSeverity());
+                Font tagFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 7.5f, Color.WHITE);
+                PdfPCell tag = new PdfPCell(new Phrase(r.getSeverity().name(), tagFont));
+                tag.setBackgroundColor(sevColor);
+                tag.setPadding(6); tag.setBorder(Rectangle.NO_BORDER);
+                tag.setHorizontalAlignment(Element.ALIGN_CENTER);
+                tag.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                table.addCell(tag);
+
+                table.addCell(bodyCell(nullSafe(r.getFinding()), bg));
+                table.addCell(bodyCell(nullSafe(r.getAction()), bg));
+                table.addCell(bodyCell(nullSafe(r.getOwner()), bg));
+                alt = !alt;
+            }
+            doc.add(table);
+            return this;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to add recommendations", e);
+        }
+    }
+
     // ── Private helpers ──────────────────────────────────────────────────────
+
+    private PdfPCell buildKpiCard(Indicator ind) {
+        PdfPCell card = new PdfPCell();
+        card.setPadding(9);
+        card.setBorderColor(BORDER);
+        card.setBorderWidth(0.8f);
+        card.setBackgroundColor(Color.WHITE);
+        card.setVerticalAlignment(Element.ALIGN_TOP);
+
+        Paragraph label = new Paragraph(ind.getLabel() != null ? ind.getLabel().toUpperCase() : "", kpiLabelFont);
+        label.setLeading(9f);
+        card.addElement(label);
+
+        Paragraph value = new Paragraph(ind.getValue() != null ? ind.getValue() : "—", kpiValueFont);
+        value.setSpacingBefore(3);
+        value.setLeading(17f);
+        card.addElement(value);
+
+        if (ind.getDeltaLabel() != null) {
+            Color dc = ragColor(ind.getStatus());
+            Font deltaFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8f, dc);
+            // Signed delta text ("+4.2 pts" / "-8") + colour convey direction;
+            // avoid Unicode arrow glyphs (not in the PDF's WINANSI encoding).
+            Paragraph delta = new Paragraph(ind.getDeltaLabel(), deltaFont);
+            delta.setSpacingBefore(2);
+            card.addElement(delta);
+        }
+
+        if (ind.getTarget() != null) {
+            Paragraph target = new Paragraph(ind.getTarget(), kpiTargetFont);
+            target.setSpacingBefore(2);
+            card.addElement(target);
+        }
+        return card;
+    }
+
+    private PdfPCell bodyCell(String text, Color bg) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, tableCellFont));
+        cell.setPadding(6);
+        cell.setBorderColor(BORDER);
+        cell.setBackgroundColor(bg);
+        return cell;
+    }
+
+    private static Color severityColor(Recommendation.Severity sev) {
+        if (sev == null) return TEXT_GREY;
+        return switch (sev) {
+            case CRITICAL -> DANGER;
+            case WARNING -> WARNING_CLR;
+            case INFO -> TEXT_GREY;
+        };
+    }
+
+    private static Color ragColor(Indicator.Rag rag) {
+        if (rag == null) return TEXT_GREY;
+        return switch (rag) {
+            case GOOD -> SUCCESS;
+            case WATCH -> WARNING_CLR;
+            case BAD -> DANGER;
+            case NEUTRAL -> TEXT_GREY;
+        };
+    }
+
 
     private void addBand(Color color, float height, float spacingBefore, float spacingAfter)
             throws DocumentException {
