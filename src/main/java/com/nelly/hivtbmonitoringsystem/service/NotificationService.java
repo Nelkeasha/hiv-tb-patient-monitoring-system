@@ -253,6 +253,11 @@ public class NotificationService {
             return;
         }
 
+        // 1. In-app alert — email/SMS are disabled in this deployment, so this
+        // (plus the WebSocket broadcast inside AlertService) is the channel the
+        // CHW reliably sees. Fires once: confirmPatient guards PROVISIONAL→CONFIRMED.
+        alertService.createReferralConfirmedAlert(patient, chw);
+
         String diagnosisName = patient.getDiagnosisType() != null
                 ? patient.getDiagnosisType().name().replace("_", " ")
                 : "Unknown";

@@ -83,6 +83,16 @@ public class Patient {
     @JoinColumn(name = "facility_id", nullable = false)
     private Facility facility;
 
+    /**
+     * The facility provider (doctor) who manages this patient's care — set at
+     * registration (Route A) or at clinical confirmation (Route B). Other
+     * providers at the same facility cannot see or manage the record. NULL =
+     * no owning provider yet (legacy/admin-registered) — facility-visible.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "managing_provider_id")
+    private FacilityProvider managingProvider;
+
     @Column(name = "registration_route", length = 20)
     private String registrationRoute = "FACILITY";
 

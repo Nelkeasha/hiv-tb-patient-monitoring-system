@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -48,10 +49,13 @@ class PatientServiceTest {
     private final AlertService alertService = mock(AlertService.class);
     private final UniquenessValidator uniquenessValidator = new UniquenessValidator();
 
+    private final ProviderAccessService providerAccessService =
+            new ProviderAccessService(userRepository, facilityProviderRepository);
+
     private final PatientService patientService = new PatientService(
             patientRepository, userRepository, chwRepository,
             facilityProviderRepository, passwordEncoder, auditLogService, notificationService,
-            homeVisitTaskService, alertService, uniquenessValidator);
+            homeVisitTaskService, alertService, uniquenessValidator, providerAccessService);
 
     @BeforeEach
     void setUpSecurityContext() {
@@ -72,7 +76,7 @@ class PatientServiceTest {
     }
 
     @Test
-    void registerPatient_assignsToChwWithFewerActivePatients_whenTwoChwsShareVillage() {
+    void registerPatient_requiresExplicitSelection_whenTwoChwsShareVillage() {
         Facility facility = Facility.builder().id(UUID.randomUUID()).name("Dream Medical Center").build();
 
         Chw busyChw = Chw.builder()
@@ -97,11 +101,6 @@ class PatientServiceTest {
 
         when(chwRepository.findByIsActiveTrueAndAssignedVillageIgnoreCase("Kacyiru"))
                 .thenReturn(List.of(busyChw, lightlyLoadedChw));
-        when(patientRepository.countByChwIdAndIsActiveTrue(busyChw.getId())).thenReturn(12L);
-        when(patientRepository.countByChwIdAndIsActiveTrue(lightlyLoadedChw.getId())).thenReturn(2L);
-
-        when(patientRepository.existsByNationalId(any())).thenReturn(false);
-        when(patientRepository.existsByPhoneNumber(any())).thenReturn(false);
 
         RegisterPatientRequest req = new RegisterPatientRequest();
         req.setFullName("Jean Mugisha");
@@ -113,15 +112,14 @@ class PatientServiceTest {
         req.setHasSmartphone(false);
         req.setConsentGiven(true);
         req.setConsentVersion("v1");
-        // assignedChwId intentionally left null so the village/caseload tie-break runs.
+        // assignedChwId intentionally left null — with several village CHWs the
+        // system must demand an explicit selection instead of silently picking.
 
-        patientService.registerPatient(req);
+        assertThatThrownBy(() -> patientService.registerPatient(req))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("Multiple CHWs cover this village");
 
-        var patientCaptor = org.mockito.ArgumentCaptor.forClass(Patient.class);
-        org.mockito.Mockito.verify(patientRepository, org.mockito.Mockito.atLeastOnce()).save(patientCaptor.capture());
-        Patient savedPatient = patientCaptor.getValue();
-
-        assertThat(savedPatient.getChw().getId()).isEqualTo(lightlyLoadedChw.getId());
+        org.mockito.Mockito.verify(patientRepository, org.mockito.Mockito.never()).save(any(Patient.class));
     }
 
     @Test

@@ -51,6 +51,17 @@ public class FacilityDashboardController {
         return ResponseEntity.ok(dashboardService.getPatientDetail(patientId));
     }
 
+    /**
+     * Village-scoped CHW assignment candidates (registration/confirmation UI).
+     * mode=SINGLE → auto-assign read-only; MULTIPLE → required dropdown of the
+     * village CHWs; NONE → warning + fallback dropdown of all facility CHWs.
+     */
+    @GetMapping("/chw-candidates")
+    public ResponseEntity<ChwCandidatesResponse> getChwCandidates(
+            @RequestParam(required = false) String village) {
+        return ResponseEntity.ok(dashboardService.getChwCandidates(village));
+    }
+
     /** CHW list for this facility with per-CHW patient counts. */
     @GetMapping("/chws")
     public ResponseEntity<List<FacilityChwSummaryResponse>> getChws() {

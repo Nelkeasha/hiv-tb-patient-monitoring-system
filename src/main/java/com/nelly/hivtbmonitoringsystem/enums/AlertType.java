@@ -22,6 +22,14 @@ public enum AlertType {
     ADVERSE_EVENT,
 
     /**
+     * In-app notification to the screening CHW when clinical staff confirm
+     * their provisional referral (PROVISIONAL → CONFIRMED, fires once). Email
+     * and SMS are disabled in this deployment, so this is the reliable
+     * channel alongside the FCM push (V40).
+     */
+    REFERRAL_CONFIRMED,
+
+    /**
      * Produced by the Python AI service's clinical_correlation_service
      * (Pattern E) — fired when two consecutive HIV viral load readings polled
      * from FHIR Observations both exceed 50 copies/mL. Written directly to

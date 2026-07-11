@@ -215,6 +215,29 @@ public class AlertService {
     // ── Called internally by PatientService / PatientAssignmentScheduler ─────
 
     /**
+     * In-app notification to the screening CHW that their referral was
+     * confirmed and joined their active caseload (PROVISIONAL → CONFIRMED,
+     * called once from PatientService#confirmPatient). Broadcast over the
+     * WebSocket relay like every other alert.
+     */
+    @Transactional
+    public void createReferralConfirmedAlert(Patient patient, Chw chw) {
+        Alert alert = Alert.builder()
+                .patient(patient)
+                .chw(chw)
+                .alertType(AlertType.REFERRAL_CONFIRMED)
+                .severity(AlertSeverity.INFO)
+                .title("Referral Confirmed")
+                .message("Your referred patient " + patient.getFullName()
+                        + " (" + patient.getPatientCode() + ") has been confirmed "
+                        + "and added to your caseload.")
+                .isRead(false)
+                .isResolved(false)
+                .build();
+        broadcast(alertRepository.save(alert));
+    }
+
+    /**
      * Masked notification — deliberately does NOT link the patient, so the
      * existing toResponse() mapping below returns patientName=null. The CHW
      * sees only the protocol type until they accept via PatientController.

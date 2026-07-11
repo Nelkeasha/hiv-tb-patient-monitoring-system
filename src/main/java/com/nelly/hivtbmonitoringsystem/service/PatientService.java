@@ -52,6 +52,7 @@ public class PatientService {
     private final HomeVisitTaskService homeVisitTaskService;
     private final AlertService alertService;
     private final UniquenessValidator uniquenessValidator;
+    private final ProviderAccessService providerAccessService;
 
     // ── Route B — CHW provisional screening ──────────────────────────────────
 
@@ -165,16 +166,11 @@ public class PatientService {
     @Transactional
     public PatientResponse registerPatient(RegisterPatientRequest req) {
         SystemUser currentUser = resolveCurrentUser();
+        FacilityProvider registrar = facilityProviderRepository
+                .findByUserId(currentUser.getId()).orElse(null);
+        UUID registrarFacilityId = registrar != null ? registrar.getFacility().getId() : null;
 
-        Chw chw;
-        if (req.getAssignedChwId() != null) {
-            chw = chwRepository.findById(req.getAssignedChwId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
-        } else {
-            chw = matchChwByLocation(req.getVillage(), req.getSector())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "No CHW covers this village/sector — please select a CHW manually"));
-        }
+        Chw chw = resolveVillageScopedChw(req.getAssignedChwId(), req.getVillage(), registrarFacilityId);
 
         uniquenessValidator.ensureUnique("nationalId",
                 req.getNationalId() != null && !req.getNationalId().isBlank()
@@ -213,6 +209,7 @@ public class PatientService {
                 .facility(chw.getFacility())
                 .registrationRoute("FACILITY")
                 .registrationStatus("CONFIRMED")
+                .managingProvider(registrar)
                 .confirmedBy(currentUser.getId())
                 .confirmedAt(LocalDateTime.now())
                 .syncStatus(SyncStatus.PENDING)
@@ -273,9 +270,23 @@ public class PatientService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
 
+        // Facility + provider-level scoping (a PROVISIONAL voucher is unowned,
+        // so any provider at the patient's facility may confirm it; a foreign
+        // facility's provider may not).
+        providerAccessService.ensureCanManage(patient);
+
         if (!"PROVISIONAL".equals(patient.getRegistrationStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Patient is already CONFIRMED — cannot confirm again");
+        }
+
+        // Optional village-scoped CHW (re)assignment at confirmation. When omitted,
+        // the screening CHW keeps the patient.
+        if (req.getAssignedChwId() != null
+                && (patient.getChw() == null || !req.getAssignedChwId().equals(patient.getChw().getId()))) {
+            Chw newChw = resolveVillageScopedChw(req.getAssignedChwId(), patient.getVillage(),
+                    patient.getFacility() != null ? patient.getFacility().getId() : null);
+            patient.setChw(newChw);
         }
 
         patient.setRegistrationStatus("CONFIRMED");
@@ -287,6 +298,13 @@ public class PatientService {
         patient.setConfirmedBy(currentUser.getId());
         patient.setConfirmedAt(LocalDateTime.now());
         patient.setSyncStatus(SyncStatus.PENDING);
+
+        // The confirming provider becomes the patient's managing provider —
+        // from here on, other providers at the facility cannot open the record.
+        if (patient.getManagingProvider() == null) {
+            facilityProviderRepository.findByUserId(currentUser.getId())
+                    .ifPresent(patient::setManagingProvider);
+        }
 
         patientRepository.save(patient);
 
@@ -356,6 +374,8 @@ public class PatientService {
 
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        providerAccessService.ensureCanManage(patient);
 
         if (!"PROVISIONAL".equals(patient.getRegistrationStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -661,26 +681,55 @@ public class PatientService {
                 .build();
     }
 
-    /** Village-level match takes priority; falls back to sector-level coverage. */
     /**
-     * Matches the patient's village (falling back to sector) against active CHWs.
-     * When more than one CHW covers the same village/sector, the one with the
-     * fewest currently-active patients is picked, so a shared village's caseload
-     * doesn't pile onto a single CHW.
+     * Village-scoped CHW assignment with explicit disambiguation — no silent
+     * tie-breaking. The village drives the candidate list (scoped to the
+     * provider's facility):
+     * <ul>
+     *   <li>exactly one village CHW + none selected → auto-assign;</li>
+     *   <li>several village CHWs → the provider must pick one of them;</li>
+     *   <li>no village CHW → the provider must pick any facility CHW (fallback,
+     *       so the patient is never left unassigned).</li>
+     * </ul>
+     * A selected CHW is always validated server-side: active, same facility as
+     * the provider, and covering the patient's village unless no CHW does.
      */
-    private Optional<Chw> matchChwByLocation(String village, String sector) {
-        List<Chw> candidates = List.of();
-        if (village != null && !village.isBlank()) {
-            candidates = chwRepository.findByIsActiveTrueAndAssignedVillageIgnoreCase(village.trim());
-        }
-        if (candidates.isEmpty() && sector != null && !sector.isBlank()) {
-            candidates = chwRepository.findByIsActiveTrueAndAssignedSectorIgnoreCase(sector.trim());
-        }
-        if (candidates.isEmpty()) return Optional.empty();
-        if (candidates.size() == 1) return Optional.of(candidates.get(0));
+    private Chw resolveVillageScopedChw(UUID selectedChwId, String village, UUID facilityId) {
+        List<Chw> villageChws = villageCandidates(village, facilityId);
 
-        return candidates.stream()
-                .min(Comparator.comparingLong(c -> patientRepository.countByChwIdAndIsActiveTrue(c.getId())));
+        if (selectedChwId == null) {
+            if (villageChws.size() == 1) return villageChws.get(0);
+            if (villageChws.size() > 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Multiple CHWs cover this village — please select one (Assign to CHW)");
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "No CHW covers this village — please select one of the facility's CHWs");
+        }
+
+        Chw chw = chwRepository.findById(selectedChwId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "CHW not found"));
+        if (!Boolean.TRUE.equals(chw.getIsActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The selected CHW is inactive");
+        }
+        if (facilityId != null && !chw.getFacility().getId().equals(facilityId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The selected CHW belongs to a different facility");
+        }
+        // Village must match unless no CHW covers the village at all (fallback case).
+        if (!villageChws.isEmpty() && villageChws.stream().noneMatch(c -> c.getId().equals(chw.getId()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The selected CHW does not cover the patient's village — choose one of the village CHWs");
+        }
+        return chw;
+    }
+
+    /** Active CHWs whose assigned village matches, scoped to the given facility. */
+    private List<Chw> villageCandidates(String village, UUID facilityId) {
+        if (village == null || village.isBlank()) return List.of();
+        return chwRepository.findByIsActiveTrueAndAssignedVillageIgnoreCase(village.trim()).stream()
+                .filter(c -> facilityId == null || c.getFacility().getId().equals(facilityId))
+                .toList();
     }
 
     private String protocolLabel(DiagnosisType type) {

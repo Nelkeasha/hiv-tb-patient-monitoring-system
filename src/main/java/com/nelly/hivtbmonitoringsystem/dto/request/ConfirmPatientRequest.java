@@ -8,6 +8,7 @@ import jakarta.validation.constraints.PastOrPresent;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * Route B confirmation — Clinical staff upgrades a PROVISIONAL patient to ACTIVE.
@@ -28,4 +29,11 @@ public class ConfirmPatientRequest {
     private LocalDate tbTreatmentStartDate;
 
     private String labResultNotes;
+
+    /**
+     * Optional village-scoped CHW (re)assignment at confirmation. When omitted,
+     * the screening CHW keeps the patient. Validated server-side: active, same
+     * facility, and covering the patient's village unless no CHW does.
+     */
+    private UUID assignedChwId;
 }

@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 public class FacilityDashboardService {
 
     private final FacilityProviderRepository facilityProviderRepository;
+    private final ProviderAccessService providerAccessService;
     private final PatientRepository patientRepository;
     private final ChwRepository chwRepository;
     private final TreatmentPlanRepository treatmentPlanRepository;
@@ -83,7 +84,13 @@ public class FacilityDashboardService {
         FacilityProvider provider = resolveProvider();
         UUID facilityId = provider.getFacility().getId();
 
-        List<Patient> patients = patientRepository.findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED");
+        // Doctor-level scoping: a provider sees only their own patients (plus
+        // unowned legacy/admin-registered rows). Admins see the whole facility.
+        boolean admin = providerAccessService.isAdmin();
+        List<Patient> patients = patientRepository
+                .findByFacilityIdAndIsActiveTrueAndRegistrationStatus(facilityId, "CONFIRMED").stream()
+                .filter(p -> admin || providerAccessService.canManage(p, provider))
+                .toList();
 
         // Build a patientId → latest risk score map in one query
         Map<UUID, AiRiskScore> riskByPatient = aiRiskScoreRepository
@@ -119,6 +126,10 @@ public class FacilityDashboardService {
 
         if (!patient.getFacility().getId().equals(provider.getFacility().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Patient is not registered at your facility");
+        }
+        if (!providerAccessService.isAdmin() && !providerAccessService.canManage(patient, provider)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "This patient is managed by another provider");
         }
 
         AiRiskScore latestScore = aiRiskScoreRepository
@@ -159,6 +170,43 @@ public class FacilityDashboardService {
                 .latestRiskScore(latestScore != null ? toRiskScoreResponse(latestScore) : null)
                 .unresolvedAlerts(unresolvedAlerts)
                 .recentHomeVisits(recentVisits)
+                .build();
+    }
+
+    /**
+     * Village-scoped CHW assignment candidates (Change 1). Active CHWs at the
+     * provider's facility whose assigned village matches; when none match, the
+     * fallback list is every active CHW at the facility so the patient is
+     * never left unassigned.
+     */
+    public ChwCandidatesResponse getChwCandidates(String village) {
+        FacilityProvider provider = resolveProvider();
+        UUID facilityId = provider.getFacility().getId();
+
+        List<Chw> facilityChws = chwRepository.findByFacilityId(facilityId).stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                .toList();
+        List<Chw> villageChws = (village == null || village.isBlank()) ? List.of()
+                : facilityChws.stream()
+                    .filter(c -> village.trim().equalsIgnoreCase(c.getAssignedVillage()))
+                    .toList();
+
+        ChwCandidatesResponse.Mode mode =
+                villageChws.size() == 1 ? ChwCandidatesResponse.Mode.SINGLE
+                : villageChws.size() > 1 ? ChwCandidatesResponse.Mode.MULTIPLE
+                : ChwCandidatesResponse.Mode.NONE;
+        List<Chw> listed = villageChws.isEmpty() ? facilityChws : villageChws;
+
+        return ChwCandidatesResponse.builder()
+                .mode(mode)
+                .candidates(listed.stream()
+                        .map(c -> ChwCandidatesResponse.Candidate.builder()
+                                .id(c.getId())
+                                .fullName(c.getUser() != null ? c.getUser().getFullName() : "—")
+                                .assignedVillage(c.getAssignedVillage())
+                                .activePatients(patientRepository.countByChwIdAndIsActiveTrue(c.getId()))
+                                .build())
+                        .toList())
                 .build();
     }
 

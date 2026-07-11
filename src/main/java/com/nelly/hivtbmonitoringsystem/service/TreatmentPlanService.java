@@ -44,6 +44,7 @@ public class TreatmentPlanService {
     private final ChwRepository chwRepository;
     private final SystemSettingsService systemSettingsService;
     private final AuditLogService auditLogService;
+    private final ProviderAccessService providerAccessService;
 
     // ── Clinical staff writes ─────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ public class TreatmentPlanService {
 
         Patient patient = patientRepository.findById(req.getPatientId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"));
+
+        // Doctor-level scoping: only the managing provider (or an admin) can
+        // prescribe for this patient.
+        providerAccessService.ensureCanManage(patient);
 
         if (!"CONFIRMED".equals(patient.getRegistrationStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -105,6 +110,7 @@ public class TreatmentPlanService {
     @Transactional
     public TreatmentPlanResponse updatePlan(UUID planId, UpdateTreatmentPlanRequest req) {
         TreatmentPlan plan = findPlan(planId);
+        providerAccessService.ensureCanManage(plan.getPatient());
 
         if (req.getMedicationId() != null) {
             MedicationFormulary medication = medicationFormularyRepository.findById(req.getMedicationId())
@@ -142,6 +148,7 @@ public class TreatmentPlanService {
     @Transactional
     public DoseScheduleResponse addSchedule(UUID planId, AddDoseScheduleRequest req) {
         TreatmentPlan plan = findPlan(planId);
+        providerAccessService.ensureCanManage(plan.getPatient());
         SystemUser currentUser = resolveCurrentUser();
 
         DoseSchedule schedule = buildAndSaveSchedule(plan, plan.getPatient(), req.getDoseTime(),
