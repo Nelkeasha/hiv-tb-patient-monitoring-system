@@ -7,6 +7,7 @@ import com.nelly.hivtbmonitoringsystem.service.export.ClinicalCsvReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.ClinicalExcelReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.ClinicalPdfReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.support.ReportFormat;
+import com.nelly.hivtbmonitoringsystem.service.report.FacilityReportModelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +27,7 @@ public class FacilityDashboardController {
 
     private final FacilityDashboardService dashboardService;
     private final FacilityReportService reportService;
+    private final FacilityReportModelService reportModelService;
     private final ClinicalPdfReportService pdfReportService;
     private final ClinicalExcelReportService excelReportService;
     private final ClinicalCsvReportService csvReportService;
@@ -73,20 +75,28 @@ public class FacilityDashboardController {
         return ResponseEntity.ok(dashboardService.getAdherenceTrend());
     }
 
-    /** Facility report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv. */
+    /**
+     * Facility report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv.
+     * Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD sets the reporting period (default: last 30 days).
+     * PDF/Excel are the redesigned management report; CSV stays a flat data export.
+     */
     @GetMapping("/reports/summary/export")
-    public ResponseEntity<byte[]> downloadReport(@RequestParam String format) {
+    public ResponseEntity<byte[]> downloadReport(
+            @RequestParam String format,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
         ReportFormat reportFormat = ReportFormat.fromParam(format);
-        FacilityReportResponse report = reportService.generateSummary();
+        java.time.LocalDate fromDate = (from != null && !from.isBlank()) ? java.time.LocalDate.parse(from) : null;
+        java.time.LocalDate toDate = (to != null && !to.isBlank()) ? java.time.LocalDate.parse(to) : null;
 
         byte[] body = switch (reportFormat) {
-            case PDF -> pdfReportService.generate(report);
-            case EXCEL -> excelReportService.generate(report);
-            case CSV -> csvReportService.generate(report);
+            case PDF -> pdfReportService.generate(reportModelService.build(fromDate, toDate));
+            case EXCEL -> excelReportService.generate(reportModelService.build(fromDate, toDate));
+            case CSV -> csvReportService.generate(reportService.generateSummary());
         };
 
         String filename = "facility-report-"
-                + report.getGeneratedAt().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                + java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 + "." + reportFormat.fileExtension;
         return ResponseEntity.ok()
                 .contentType(reportFormat.contentType)

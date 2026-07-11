@@ -13,12 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 
 /**
- * Runs every minute. For each active SMS-channel dose schedule whose dose time
- * falls within the current minute, sends a reminder SMS asking the patient to
- * reply YES/NO once they take their medication.
+ * Runs every minute. For each active SMS-channel dose schedule, sends a reminder
+ * SMS asking the patient to reply YES/NO once they take their medication. The
+ * reminder fires anywhere inside the dose window (not just the exact dose
+ * minute) so a missed scheduler tick or brief instance sleep can't drop it, and
+ * {@code last_reminder_date} keeps it to one reminder per schedule per day.
+ *
+ * <p>Uses the JVM default zone, which {@code TimeZoneConfig} pins to clinic-local
+ * time — so an 08:00 dose reminds at 08:00 local, not 08:00 UTC.
  */
 @Component
 @RequiredArgsConstructor
@@ -30,18 +34,24 @@ public class SmsReminderScheduler {
     private final SmsOutboundService smsOutboundService;
 
     @Scheduled(fixedRate = 60_000)
-    @Transactional(readOnly = true)
+    @Transactional
     public void sendDoseReminders() {
         LocalDateTime now = LocalDateTime.now();
         LocalDate today = now.toLocalDate();
-        LocalTime currentMinute = now.toLocalTime().withSecond(0).withNano(0);
 
         for (DoseSchedule schedule : doseScheduleRepository.findByIsActiveTrue()) {
             if (schedule.getNotificationMethod() != ConfirmationChannel.SMS) {
                 continue;
             }
-            if (!schedule.getDoseTime().withSecond(0).withNano(0).equals(currentMinute)) {
-                continue;
+
+            int window = schedule.getWindowDurationMinutes() != null ? schedule.getWindowDurationMinutes() : 45;
+            LocalDateTime windowOpen  = today.atTime(schedule.getDoseTime());
+            LocalDateTime windowClose = windowOpen.plusMinutes(window);
+            if (now.isBefore(windowOpen) || !now.isBefore(windowClose)) {
+                continue; // outside the send window (too early, or window already closed)
+            }
+            if (today.equals(schedule.getLastReminderDate())) {
+                continue; // already reminded today
             }
             if (confirmationLogRepository.findByScheduleIdAndScheduledDate(schedule.getId(), today).isPresent()) {
                 continue; // already confirmed/missed for today
@@ -53,6 +63,9 @@ public class SmsReminderScheduler {
                     "Reply YES once taken, or NO if not. - Dream Medical Center";
 
             smsOutboundService.send(schedule.getPatient().getPhoneNumber(), message);
+
+            schedule.setLastReminderDate(today);
+            doseScheduleRepository.save(schedule);
             log.info("Dose reminder SMS sent: patient={} schedule={}", schedule.getPatient().getId(), schedule.getId());
         }
     }

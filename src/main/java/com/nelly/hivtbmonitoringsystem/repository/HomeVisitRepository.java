@@ -22,6 +22,8 @@ public interface HomeVisitRepository extends JpaRepository<HomeVisit, UUID> {
     List<HomeVisit> findByChwIdAndVisitDateBetween(UUID chwId, LocalDateTime from, LocalDateTime to);
     long countByPatientIdAndVisitDateAfter(UUID patientId, LocalDateTime after);
     long countByChwIdAndVisitDateAfter(UUID chwId, LocalDateTime after);
+    /** System-wide visit count in a window — used by the admin report's period comparison. */
+    long countByVisitDateBetween(LocalDateTime from, LocalDateTime to);
     List<HomeVisit> findByChwIdOrderByVisitDateDesc(UUID chwId);
     List<HomeVisit> findByChwIdAndSyncStatus(UUID chwId, SyncStatus syncStatus);
     long countBySyncStatus(SyncStatus syncStatus);

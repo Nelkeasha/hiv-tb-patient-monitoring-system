@@ -6,6 +6,7 @@ import com.nelly.hivtbmonitoringsystem.service.export.AdminCsvReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.AdminExcelReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.AdminPdfReportService;
 import com.nelly.hivtbmonitoringsystem.service.export.support.ReportFormat;
+import com.nelly.hivtbmonitoringsystem.service.report.AdminReportModelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -25,6 +26,7 @@ import java.time.format.DateTimeFormatter;
 public class AdminReportController {
 
     private final AdminReportService reportService;
+    private final AdminReportModelService reportModelService;
     private final AdminPdfReportService pdfReportService;
     private final AdminExcelReportService excelReportService;
     private final AdminCsvReportService csvReportService;
@@ -35,20 +37,28 @@ public class AdminReportController {
         return ResponseEntity.ok(reportService.generateSummary());
     }
 
-    /** System-wide report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv. */
+    /**
+     * System-wide report exported as PDF, Excel, or CSV — pick via ?format=pdf|excel|csv.
+     * Optional ?from=YYYY-MM-DD&to=YYYY-MM-DD sets the reporting period (default: last 30 days).
+     * PDF/Excel are the redesigned management report; CSV stays a flat data export.
+     */
     @GetMapping("/summary/export")
-    public ResponseEntity<byte[]> downloadReport(@RequestParam String format) {
+    public ResponseEntity<byte[]> downloadReport(
+            @RequestParam String format,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
         ReportFormat reportFormat = ReportFormat.fromParam(format);
-        AdminReportResponse report = reportService.generateSummary();
+        java.time.LocalDate fromDate = (from != null && !from.isBlank()) ? java.time.LocalDate.parse(from) : null;
+        java.time.LocalDate toDate = (to != null && !to.isBlank()) ? java.time.LocalDate.parse(to) : null;
 
         byte[] body = switch (reportFormat) {
-            case PDF -> pdfReportService.generate(report);
-            case EXCEL -> excelReportService.generate(report);
-            case CSV -> csvReportService.generate(report);
+            case PDF -> pdfReportService.generate(reportModelService.build(fromDate, toDate));
+            case EXCEL -> excelReportService.generate(reportModelService.build(fromDate, toDate));
+            case CSV -> csvReportService.generate(reportService.generateSummary());
         };
 
         String filename = "admin-report-"
-                + report.getGeneratedAt().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                + java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 + "." + reportFormat.fileExtension;
         return ResponseEntity.ok()
                 .contentType(reportFormat.contentType)

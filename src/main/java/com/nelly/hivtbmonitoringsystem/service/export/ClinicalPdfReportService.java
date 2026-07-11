@@ -1,86 +1,54 @@
 package com.nelly.hivtbmonitoringsystem.service.export;
 
-import com.nelly.hivtbmonitoringsystem.dto.response.ChwPerformanceRow;
-import com.nelly.hivtbmonitoringsystem.dto.response.FacilityReportResponse;
+import com.nelly.hivtbmonitoringsystem.dto.report.KvSection;
+import com.nelly.hivtbmonitoringsystem.dto.report.LineListing;
+import com.nelly.hivtbmonitoringsystem.dto.report.ReportModel;
 import com.nelly.hivtbmonitoringsystem.service.export.support.PdfReportBuilder;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Renders the facility (clinical) report as a formal PDF document — the
- * "official" artifact clinical staff print or file, as opposed to the live
- * dashboard which only shows a subset of these figures.
+ * Renders a facility (clinical) {@link ReportModel} as a formal management
+ * report PDF — executive summary, KPIs with period-over-period deltas,
+ * recommendations, supporting breakdowns, and named case line-listings.
  */
 @Service
 public class ClinicalPdfReportService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm");
 
-    public byte[] generate(FacilityReportResponse report) {
-        String metaLine = (report.getFacilityName() != null ? report.getFacilityName() : "Facility")
-                + (report.getDistrict() != null ? " — " + report.getDistrict() : "")
-                + "   |   Generated: "
-                + (report.getGeneratedAt() != null ? report.getGeneratedAt().format(TS) : "-");
+    public byte[] generate(ReportModel model) {
+        StringBuilder meta = new StringBuilder();
+        meta.append(model.getScopeName() != null ? model.getScopeName() : "Facility");
+        if (model.getSubScope() != null && !model.getSubScope().isBlank()) {
+            meta.append(" - ").append(model.getSubScope());
+        }
+        meta.append("   |   Period: ").append(model.getPeriodLabel());
+        meta.append("   |   ").append(model.getComparisonLabel());
+        meta.append("   |   Generated: ")
+            .append(model.getGeneratedAt() != null ? model.getGeneratedAt().format(TS) : "-");
 
         PdfReportBuilder builder = new PdfReportBuilder()
-                .header("Official Facility Clinical Report", metaLine)
-                .section("Patient Overview", new String[][]{
-                        {"Total Active Patients", String.valueOf(report.getTotalActivePatients())},
-                        {"HIV Only", String.valueOf(report.getHivOnly())},
-                        {"TB Only", String.valueOf(report.getTbOnly())},
-                        {"HIV + TB Co-infection", String.valueOf(report.getHivTbCoinfection())},
-                })
-                .section("Risk Distribution", new String[][]{
-                        {"Low", String.valueOf(report.getRiskLow())},
-                        {"Moderate", String.valueOf(report.getRiskModerate())},
-                        {"High", String.valueOf(report.getRiskHigh())},
-                        {"Critical", String.valueOf(report.getRiskCritical())},
-                        {"Unscored", String.valueOf(report.getRiskUnscored())},
-                })
-                .section("Adherence", new String[][]{
-                        {"Facility Adherence Average", PdfReportBuilder.formatPct(report.getFacilityAdherenceAvg())},
-                        {"Below Threshold (Patients)", String.valueOf(report.getBelowThresholdCount())},
-                        {"False Confirmation Flags", String.valueOf(report.getFalseConfirmationFlagCount())},
-                })
-                .section("Referrals", new String[][]{
-                        {"Total", String.valueOf(report.getReferralTotal())},
-                        {"Pending", String.valueOf(report.getReferralPending())},
-                        {"Confirmed", String.valueOf(report.getReferralConfirmed())},
-                        {"Attended", String.valueOf(report.getReferralAttended())},
-                        {"Not Attended", String.valueOf(report.getReferralNotAttended())},
-                        {"Cancelled", String.valueOf(report.getReferralCancelled())},
-                })
-                .section("Alerts (Unresolved)", new String[][]{
-                        {"Total Unresolved", String.valueOf(report.getUnresolvedAlerts())},
-                        {"Critical", String.valueOf(report.getCriticalAlerts())},
-                        {"Warning", String.valueOf(report.getWarningAlerts())},
-                })
-                .dataTable("CHW Performance (Last 30 Days)",
-                        new String[]{"CHW Name", "Employee Code", "Village", "Active Patients", "Visits (30d)", "Missed Doses (30d)"},
-                        chwRows(report),
-                        "No CHW activity recorded in the last 30 days")
-                .footer("This is a system-generated report from the HIV/TB Monitoring System. "
-                        + "Figures reflect data as of the generation timestamp above.");
+                .header(model.getReportTitle(), meta.toString())
+                .kpiCards("Programme Indicators", model.getIndicators())
+                .executiveSummary(model.getExecutiveSummary())
+                .recommendations(model.getRecommendations());
+
+        if (model.getKvSections() != null) {
+            for (KvSection s : model.getKvSections()) builder.section(s.getTitle(), s.getRows());
+        }
+        if (model.getLineListings() != null) {
+            for (LineListing l : model.getLineListings()) {
+                builder.dataTable(l.getTitle(), l.getHeaders(), l.getRows(), l.getEmptyMessage());
+            }
+        }
+
+        builder.signOff(model.getGeneratedBy(), null)
+               .footer("This is a system-generated report from the HIV/TB Monitoring System. "
+                       + "Figures reflect data as of the generation timestamp above. "
+                       + "Patients are identified by code to preserve confidentiality.");
 
         return builder.build();
-    }
-
-    private List<String[]> chwRows(FacilityReportResponse report) {
-        List<String[]> rows = new ArrayList<>();
-        if (report.getChwPerformance() == null) return rows;
-        for (ChwPerformanceRow row : report.getChwPerformance()) {
-            rows.add(new String[]{
-                    PdfReportBuilder.nullSafe(row.getChwName()),
-                    PdfReportBuilder.nullSafe(row.getEmployeeCode()),
-                    PdfReportBuilder.nullSafe(row.getAssignedVillage()),
-                    String.valueOf(row.getActivePatients()),
-                    String.valueOf(row.getVisitsLast30Days()),
-                    String.valueOf(row.getMissedDosesLast30Days()),
-            });
-        }
-        return rows;
     }
 }
