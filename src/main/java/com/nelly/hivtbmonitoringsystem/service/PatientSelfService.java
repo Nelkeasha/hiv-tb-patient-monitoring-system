@@ -80,10 +80,13 @@ public class PatientSelfService {
                 doseScheduleRepository.findByPatientIdAndIsActiveTrue(patient.getId());
 
         return schedules.stream().map(s -> {
-            int halfWindow = (s.getWindowDurationMinutes() != null ? s.getWindowDurationMinutes() : 45) / 2;
+            // Same window as PatientConfirmationService / MissedDoseScheduler:
+            // [doseTime, doseTime + windowDurationMinutes]. The app must never
+            // show "missed" while the confirm endpoint would still accept.
+            int window = s.getWindowDurationMinutes() != null ? s.getWindowDurationMinutes() : 45;
             LocalTime doseTime = s.getDoseTime();
-            LocalDateTime windowOpen = today.atTime(doseTime).minusMinutes(halfWindow);
-            LocalDateTime windowClose = today.atTime(doseTime).plusMinutes(halfWindow);
+            LocalDateTime windowOpen = today.atTime(doseTime);
+            LocalDateTime windowClose = windowOpen.plusMinutes(window);
 
             Optional<ConfirmationLog> log =
                     confirmationLogRepository.findByScheduleIdAndScheduledDate(s.getId(), today);

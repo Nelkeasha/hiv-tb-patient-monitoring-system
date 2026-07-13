@@ -2,8 +2,6 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import com.nelly.hivtbmonitoringsystem.enums.ConfirmationChannel;
 import com.nelly.hivtbmonitoringsystem.validation.ValidationMessages;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -22,9 +20,8 @@ public class AddDoseScheduleRequest {
 
     private ConfirmationChannel notificationMethod = ConfirmationChannel.APP;
 
-    @Min(value = 1, message = ValidationMessages.WINDOW_DURATION_TOO_SHORT)
-    @Max(value = 1440, message = ValidationMessages.WINDOW_DURATION_TOO_LONG)
-    private Integer windowDurationMinutes = 45;
+    // The confirmation window is not client-configurable: every schedule uses the
+    // system-wide confirm_window_minutes setting (45 min), whatever the dose time.
 
     @Size(max = 100, message = "Prescription source must be at most 100 characters")
     private String prescriptionSource;

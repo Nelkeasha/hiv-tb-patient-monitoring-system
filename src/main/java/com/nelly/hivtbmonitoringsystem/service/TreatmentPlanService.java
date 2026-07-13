@@ -152,7 +152,8 @@ public class TreatmentPlanService {
         SystemUser currentUser = resolveCurrentUser();
 
         DoseSchedule schedule = buildAndSaveSchedule(plan, plan.getPatient(), req.getDoseTime(),
-                req.getDoseLabel(), req.getNotificationMethod(), req.getWindowDurationMinutes(),
+                req.getDoseLabel(), req.getNotificationMethod(),
+                systemSettingsService.get().getConfirmWindowMinutes(),
                 req.getPrescriptionSource(), currentUser);
         auditLogService.log("ADD_DOSE_SCHEDULE", "dose_schedules", schedule.getId());
 

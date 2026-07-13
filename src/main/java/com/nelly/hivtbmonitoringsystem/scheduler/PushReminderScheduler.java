@@ -65,11 +65,12 @@ public class PushReminderScheduler {
 
             String medication = schedule.getPlan() != null ? schedule.getPlan().getMedication().getName() : "your medication";
             String label = schedule.getDoseLabel() != null ? schedule.getDoseLabel() : "dose";
+            String patientName = schedule.getPatient().getFullName();
 
             fcmService.sendGeneric(
                     fcmToken,
-                    "Medication Reminder",
-                    "Time for your " + label + " (" + medication + "). Open the app to confirm.",
+                    "Medication Reminder — " + patientName,
+                    patientName + ", it is time for your " + label + " (" + medication + "). Open the app to confirm.",
                     "DOSE_REMINDER");
 
             schedule.setLastReminderDate(today);
