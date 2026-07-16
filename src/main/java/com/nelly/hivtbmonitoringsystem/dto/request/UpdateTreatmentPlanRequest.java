@@ -1,5 +1,6 @@
 package com.nelly.hivtbmonitoringsystem.dto.request;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,6 +18,7 @@ public class UpdateTreatmentPlanRequest {
     @Size(max = 50, message = "Frequency must be at most 50 characters")
     private String frequency;
 
+    @FutureOrPresent(message = "End date cannot be in the past")
     private LocalDate endDate;
     private Boolean isActive;
 }

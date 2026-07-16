@@ -2,6 +2,7 @@ package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import com.nelly.hivtbmonitoringsystem.validation.ValidationMessages;
 import com.nelly.hivtbmonitoringsystem.validation.constraints.DateRangeOrder;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -32,6 +33,7 @@ public class CreateTreatmentPlanRequest {
     private String frequency;
 
     @NotNull(message = ValidationMessages.START_DATE_REQUIRED)
+    @FutureOrPresent(message = "Start date cannot be in the past")
     private LocalDate startDate;
 
     private LocalDate endDate;

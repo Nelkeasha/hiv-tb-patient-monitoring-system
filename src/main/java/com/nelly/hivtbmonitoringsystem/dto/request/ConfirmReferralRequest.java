@@ -1,6 +1,7 @@
 package com.nelly.hivtbmonitoringsystem.dto.request;
 
 import com.nelly.hivtbmonitoringsystem.enums.ReferralStatus;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -11,6 +12,7 @@ import java.time.LocalDate;
 public class ConfirmReferralRequest {
 
     @NotNull(message = "Facility appointment date is required")
+    @FutureOrPresent(message = "Facility appointment date cannot be in the past")
     private LocalDate facilityAppointmentDate;
 
     @Size(max = 1000, message = "Provider notes must be at most 1000 characters")

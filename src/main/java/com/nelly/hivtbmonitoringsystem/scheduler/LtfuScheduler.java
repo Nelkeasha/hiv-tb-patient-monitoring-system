@@ -168,12 +168,18 @@ public class LtfuScheduler {
         List<Patient> allActive = patientRepository.findAllByIsActiveTrue();
         Set<UUID> visitedSet = gapPatientIds.stream().collect(Collectors.toSet());
 
-        // Add patients with no visits at all (never visited)
+        // Add patients with no visits at all (never visited). Treatment start is
+        // ART start, or TB treatment start for TB-only patients — a patient whose
+        // treatment began under 28 days ago (or hasn't begun) is not late yet.
         allActive.stream()
                 .filter(p -> homeVisitRepository.countByPatientIdAndVisitDateAfter(
                         p.getId(), today.minusYears(10).atStartOfDay()) == 0)
-                .filter(p -> p.getArtStartDate() != null &&
-                        ChronoUnit.DAYS.between(p.getArtStartDate(), today) > VISIT_GAP_DAYS)
+                .filter(p -> {
+                    LocalDate treatmentStart = p.getArtStartDate() != null
+                            ? p.getArtStartDate() : p.getTbTreatmentStartDate();
+                    return treatmentStart != null
+                            && ChronoUnit.DAYS.between(treatmentStart, today) > VISIT_GAP_DAYS;
+                })
                 .map(Patient::getId)
                 .forEach(visitedSet::add);
 

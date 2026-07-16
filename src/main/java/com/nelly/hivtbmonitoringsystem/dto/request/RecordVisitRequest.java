@@ -49,6 +49,9 @@ public class RecordVisitRequest {
     private String symptomsReported;
     private String sideEffectsReported;
     private String psychosocialNotes;
+    /** Deliberately NOT @Future: visits queued offline can sync days later, and a
+     *  next-visit date that was valid at entry time must not get the whole visit
+     *  rejected on replay. The mobile form enforces future-only at entry. */
     private LocalDateTime nextVisitDate;
 
     /** CTCAE-style severity grade for any adverse drug reaction observed during the visit, 1-4. Null = none reported. */

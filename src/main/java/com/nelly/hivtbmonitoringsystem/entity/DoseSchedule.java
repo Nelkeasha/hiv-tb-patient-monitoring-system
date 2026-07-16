@@ -68,4 +68,16 @@ public class DoseSchedule {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }
+
+    /**
+     * True when this schedule's treatment plan is actually running on the given
+     * day. Reminders, missed-dose detection, and confirmations must all be
+     * gated on this — a plan that starts tomorrow has no dose to take (or miss)
+     * today, and a plan that ended or was deactivated has none either.
+     */
+    public boolean isPlanActiveOn(LocalDate day) {
+        if (plan == null || Boolean.FALSE.equals(plan.getIsActive())) return false;
+        if (plan.getStartDate() != null && day.isBefore(plan.getStartDate())) return false;
+        return plan.getEndDate() == null || !day.isAfter(plan.getEndDate());
+    }
 }

@@ -50,6 +50,9 @@ public class MedicationRecordService {
         Patient patient = patientRepository.findById(patientId).orElse(null);
         TreatmentPlan plan = treatmentPlanRepository.findById(planId).orElse(null);
         if (patient == null || plan == null) return;
+        if (plan.getStartDate() != null && day.isBefore(plan.getStartDate())) {
+            return; // the plan wasn't running that day — a stray log must not become an adherence stat
+        }
 
         int dosesScheduled = doseScheduleRepository.findByPlanIdAndIsActiveTrue(planId).size();
         if (dosesScheduled == 0) return; // no active schedule for this plan yet — nothing to record

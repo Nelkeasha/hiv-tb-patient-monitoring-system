@@ -43,6 +43,9 @@ public class PushReminderScheduler {
             if (schedule.getNotificationMethod() != ConfirmationChannel.APP) {
                 continue;
             }
+            if (!schedule.isPlanActiveOn(today)) {
+                continue; // plan not started yet, ended, or deactivated — no dose to remind about
+            }
 
             int window = schedule.getWindowDurationMinutes() != null ? schedule.getWindowDurationMinutes() : 45;
             LocalDateTime windowOpen  = today.atTime(schedule.getDoseTime());

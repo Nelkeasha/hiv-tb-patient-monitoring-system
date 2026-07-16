@@ -49,6 +49,12 @@ public class PatientConfirmationService {
 
         LocalDate today = LocalDate.now();
 
+        if (!schedule.isPlanActiveOn(today)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "This treatment plan is not active today — it starts on "
+                            + schedule.getPlan().getStartDate());
+        }
+
         java.util.Optional<ConfirmationLog> existingLog =
                 confirmationLogRepository.findByScheduleIdAndScheduledDate(schedule.getId(), today);
 

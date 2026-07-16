@@ -79,7 +79,9 @@ public class PatientSelfService {
         List<DoseSchedule> schedules =
                 doseScheduleRepository.findByPatientIdAndIsActiveTrue(patient.getId());
 
-        return schedules.stream().map(s -> {
+        // A plan that starts tomorrow (or already ended) has no dose today —
+        // don't show it as pending/missed in the app.
+        return schedules.stream().filter(s -> s.isPlanActiveOn(today)).map(s -> {
             // Same window as PatientConfirmationService / MissedDoseScheduler:
             // [doseTime, doseTime + windowDurationMinutes]. The app must never
             // show "missed" while the confirm endpoint would still accept.

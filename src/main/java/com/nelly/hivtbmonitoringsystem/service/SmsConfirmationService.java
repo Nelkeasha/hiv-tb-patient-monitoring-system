@@ -60,9 +60,11 @@ public class SmsConfirmationService {
         }
 
         Patient patient = patientOpt.get();
+        LocalDate today = LocalDate.now();
         List<DoseSchedule> schedules = doseScheduleRepository.findByPatientIdAndIsActiveTrue(patient.getId());
         Optional<DoseSchedule> smsSchedule = schedules.stream()
                 .filter(s -> s.getNotificationMethod() == ConfirmationChannel.SMS)
+                .filter(s -> s.isPlanActiveOn(today)) // a plan starting tomorrow has no dose to confirm/miss today
                 .findFirst();
 
         if (smsSchedule.isEmpty()) {
@@ -71,7 +73,6 @@ public class SmsConfirmationService {
         }
 
         DoseSchedule schedule = smsSchedule.get();
-        LocalDate today = LocalDate.now();
 
         Optional<ConfirmationLog> existing = confirmationLogRepository.findByScheduleIdAndScheduledDate(
                 schedule.getId(), today);

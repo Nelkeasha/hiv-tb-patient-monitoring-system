@@ -44,6 +44,9 @@ public class MissedDoseScheduler {
         List<DoseSchedule> activeSchedules = doseScheduleRepository.findByIsActiveTrue();
 
         for (DoseSchedule schedule : activeSchedules) {
+            if (!schedule.isPlanActiveOn(today)) {
+                continue; // plan not started yet, ended, or deactivated — nothing to miss today
+            }
             LocalDateTime windowOpen  = today.atTime(schedule.getDoseTime());
             LocalDateTime windowClose = windowOpen.plusMinutes(schedule.getWindowDurationMinutes());
 
