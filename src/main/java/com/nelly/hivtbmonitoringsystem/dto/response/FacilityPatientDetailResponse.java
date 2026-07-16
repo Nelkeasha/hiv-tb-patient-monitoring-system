@@ -25,9 +25,18 @@ public class FacilityPatientDetailResponse {
     private String district;
     private Boolean isActive;
     private String registrationStatus;
+    private String registrationRoute;
     private String referralId;
     private String suspectedCondition;
     private String screeningNotes;
+    // Structured RBC TB symptom screen — only meaningful when
+    // registrationRoute is CHW_SCREENING (facility registrations are never screened)
+    private Boolean tbSymptomCough;
+    private Boolean tbSymptomFever;
+    private Boolean tbSymptomNightSweats;
+    private Boolean tbSymptomWeightLoss;
+    private Boolean tbSymptomChestPain;
+    private Boolean presumptiveTb;
     private java.time.LocalDateTime confirmedAt;
     private String chwName;
     private AiRiskScoreResponse latestRiskScore;
